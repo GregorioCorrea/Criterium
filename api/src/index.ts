@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import { okrRouter } from './routes/okrs';
+import okrRouter from './routes/okrs';
 import { krRouter } from './routes/krs';
 
 const app = express();

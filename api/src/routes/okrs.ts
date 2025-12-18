@@ -1,18 +1,22 @@
-import { Router } from 'express';
-import { okrService } from '../services/okrService';
+import { Router } from "express";
+import { createOkr, listOkrs } from "../repos/okrRepo";
 
-export const okrRouter = Router();
+const router = Router();
 
-okrRouter.get('/', (_req, res) => {
-  const items = okrService.list();
-  res.json(items);
+router.get("/", async (_req, res) => {
+  const rows = await listOkrs();
+  res.json(rows);
 });
 
-okrRouter.post('/', (req, res) => {
-  const { objective, fromDate, toDate } = req.body;
+router.post("/", async (req, res) => {
+  const { objective, fromDate, toDate } = req.body ?? {};
+
   if (!objective || !fromDate || !toDate) {
-    return res.status(400).json({ error: 'objective, fromDate y toDate son obligatorios' });
+    return res.status(400).json({ error: "objective, fromDate, toDate son obligatorios" });
   }
-  const okr = okrService.create({ objective, fromDate, toDate });
-  res.status(201).json(okr);
+
+  const created = await createOkr({ objective, fromDate, toDate });
+  res.status(201).json(created);
 });
+
+export default router;
