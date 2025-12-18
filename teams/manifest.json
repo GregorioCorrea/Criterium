@@ -1,0 +1,44 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "0.1.0",
+  "id": "00000000-0000-0000-0000-000000000001",
+  "packageName": "com.incuba.criterium.okr",
+  "name": {
+    "short": "Criterium OKR",
+    "full": "Criterium OKR"
+  },
+  "developer": {
+    "name": "Incuba",
+    "mpnId": "YOUR_MPN_ID",
+    "websiteUrl": "https://criterium.app",
+    "privacyUrl": "https://criterium.app/privacy",
+    "termsOfUseUrl": "https://criterium.app/terms"
+  },
+  "description": {
+    "short": "Copiloto de ejecuci\u00f3n de OKRs para Microsoft 365.",
+    "full": "Criterium OKR ayuda a descomponer, ejecutar y medir OKRs dentro de Teams, con integraciones a Planner y Azure DevOps."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#003366",
+  "staticTabs": [
+    {
+      "entityId": "criterium-home",
+      "name": "Criterium",
+      "contentUrl": "https://YOUR_APP_URL/",
+      "scopes": [
+        "personal"
+      ]
+    }
+  ],
+  "bots": [],
+  "permissions": [
+    "identity"
+  ],
+  "validDomains": [
+    "YOUR_APP_URL"
+  ]
+}

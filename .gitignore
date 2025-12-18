@@ -1,0 +1,16 @@
+# env / secrets
+.env
+*.env
+**/.env
+
+# node
+node_modules
+dist
+npm-debug.log*
+yarn-error.log*
+
+# OS / IDE
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

@@ -1,0 +1,29 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  appName: 'criterium-node-mvp-api'
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: '20.x'
+  displayName: 'Use Node.js 20'
+
+- script: |
+    cd api
+    npm install
+    npm run build
+  displayName: 'Install & build'
+
+- task: AzureWebApp@1
+  inputs:
+    azureSubscription: 'YOUR_SERVICE_CONNECTION'
+    appName: '$(appName)'
+    package: '$(System.DefaultWorkingDirectory)/api'
+  displayName: 'Deploy to Azure Web App'
