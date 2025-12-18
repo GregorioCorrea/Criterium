@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -17,6 +18,12 @@ app.get('/health', (_req, res) => {
 
 app.use('/okrs', okrRouter);
 app.use('/krs', krRouter);
+
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error("API error:", err);
+  res.status(500).json({ error: "internal_error", message: err?.message ?? String(err) });
+});
+
 
 app.listen(port, () => {
   console.log(`[criterium] API escuchando en puerto ${port}`);
