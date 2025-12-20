@@ -1,5 +1,8 @@
 import { Router } from "express";
 import { createKr, listKrsByOkr } from "../repos/krRepo";
+import { getDefaultTenantId } from "../repos/tenantRepo";
+import { createCheckin, listCheckinsByKr } from "../repos/checkinRepo";
+import { updateKrCurrentValue } from "../repos/krRepo";
 
 const router = Router();
 
@@ -29,6 +32,54 @@ router.post("/", async (req, res, next) => {
       targetValue,
       unit,
     });
+
+    res.status(201).json(created);
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+
+// GET /krs/:krId/checkins
+router.get("/:krId/checkins", async (req, res, next) => {
+  const krId = req.params.krId;
+  if (!krId || krId.trim().length < 10) {
+    return res.status(400).json({ error: "krId inválido" });
+  }
+  try {
+    const rows = await listCheckinsByKr(req.params.krId);
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /krs/:krId/checkins
+router.post("/:krId/checkins", async (req, res, next) => {
+  const krId = req.params.krId;
+  if (!krId || krId.trim().length < 10) {
+    return res.status(400).json({ error: "krId inválido" });
+  }
+  try {
+    const { value, comment } = req.body ?? {};
+
+    if (value === undefined || value === null || Number.isNaN(Number(value))) {
+      return res.status(400).json({ error: "value (numérico) es obligatorio" });
+    }
+
+    const tenantId = await getDefaultTenantId();
+
+    const created = await createCheckin({
+      tenantId,
+      krId: req.params.krId,
+      value: Number(value),
+      comment: comment ?? null,
+      createdByUserId: null,
+    });
+
+    // Actualizamos current_value del KR al último check-in
+    await updateKrCurrentValue(req.params.krId, Number(value));
 
     res.status(201).json(created);
   } catch (err) {

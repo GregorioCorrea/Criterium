@@ -1,5 +1,17 @@
 import { query } from "../db";
 
+
+export async function updateKrCurrentValue(krId: string, value: number): Promise<void> {
+  await query(
+    `
+    UPDATE dbo.key_results
+    SET current_value = @value
+    WHERE id = @krId
+    `,
+    { krId, value }
+  );
+}
+
 export type KRRow = {
   id: string;
   okrId: string;
