@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { createOkr, listOkrs } from "../repos/okrRepo";
+import { getOkrSummary } from "../repos/okrSummaryRepo";
+
 
 const router = Router();
 
@@ -26,5 +28,20 @@ router.post("/", async (req, res, next) => {
     next(err);
   }
 });
+
+router.get("/:okrId/summary", async (req, res, next) => {
+  try {
+    const { okrId } = req.params;
+    if (!okrId || okrId.trim().length < 10) {
+      return res.status(400).json({ error: "okrId inválido" });
+    }
+
+    const summary = await getOkrSummary(okrId);
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 export default router;
