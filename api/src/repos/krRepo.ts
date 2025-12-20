@@ -4,10 +4,12 @@ export type KRRow = {
   id: string;
   okrId: string;
   title: string;
-  metricName?: string;
-  targetValue?: number;
-  currentValue?: number;
-  unit?: string;
+  metricName: string | null;
+  targetValue: number | null;
+  currentValue: number | null;
+  unit: string | null;
+  status: string | null;
+  createdAt: string | null;
 };
 
 export async function listKrsByOkr(okrId: string): Promise<KRRow[]> {
@@ -20,10 +22,12 @@ export async function listKrsByOkr(okrId: string): Promise<KRRow[]> {
       metric_name as metricName,
       target_value as targetValue,
       current_value as currentValue,
-      unit
-    FROM key_results
+      unit,
+      status,
+      CONVERT(varchar(19), created_at, 120) as createdAt
+    FROM dbo.key_results
     WHERE okr_id = @okrId
-    ORDER BY id ASC
+    ORDER BY created_at ASC
     `,
     { okrId }
   );
@@ -38,7 +42,8 @@ export async function createKr(input: {
 }): Promise<KRRow> {
   const rows = await query<KRRow>(
     `
-    INSERT INTO key_results (id, okr_id, title, metric_name, target_value, current_value, unit, status)
+    INSERT INTO dbo.key_results
+      (id, okr_id, title, metric_name, target_value, current_value, unit, status, created_at)
     OUTPUT
       CAST(inserted.id as varchar(36)) as id,
       CAST(inserted.okr_id as varchar(36)) as okrId,
@@ -46,10 +51,19 @@ export async function createKr(input: {
       inserted.metric_name as metricName,
       inserted.target_value as targetValue,
       inserted.current_value as currentValue,
-      inserted.unit
-    VALUES (NEWID(), @okrId, @title, @metricName, @targetValue, 0, @unit, 'planned')
+      inserted.unit,
+      inserted.status,
+      CONVERT(varchar(19), inserted.created_at, 120) as createdAt
+    VALUES
+      (NEWID(), @okrId, @title, @metricName, @targetValue, 0, @unit, 'planned', SYSUTCDATETIME())
     `,
-    input
+    {
+      okrId: input.okrId,
+      title: input.title,
+      metricName: input.metricName ?? null,
+      targetValue: input.targetValue ?? null,
+      unit: input.unit ?? null,
+    }
   );
 
   if (!rows[0]) throw new Error("No se pudo crear el KR.");
