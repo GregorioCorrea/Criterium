@@ -1,4 +1,6 @@
 import { query } from "../db";
+import { computeHealth, computeProgressPct } from "../domain/krHealth";
+
 
 
 export async function updateKrCurrentValue(krId: string, value: number): Promise<void> {
@@ -22,10 +24,15 @@ export type KRRow = {
   unit: string | null;
   status: string | null;
   createdAt: string | null;
+
+  // calculados
+  progressPct: number | null;
+  health: "no_target" | "no_checkins" | "off_track" | "at_risk" | "on_track";
 };
 
+
 export async function listKrsByOkr(okrId: string): Promise<KRRow[]> {
-  return await query<KRRow>(
+  const rows = await query<any>(
     `
     SELECT
       CAST(id as varchar(36)) as id,
@@ -43,6 +50,29 @@ export async function listKrsByOkr(okrId: string): Promise<KRRow[]> {
     `,
     { okrId }
   );
+
+  return rows.map((r: any) => {
+    const currentValue =
+      r.currentValue === null || r.currentValue === undefined ? null : Number(r.currentValue);
+    const targetValue =
+      r.targetValue === null || r.targetValue === undefined ? null : Number(r.targetValue);
+
+    return {
+      id: String(r.id),
+      okrId: String(r.okrId),
+      title: String(r.title),
+      metricName: r.metricName ?? null,
+      targetValue,
+      currentValue,
+      unit: r.unit ?? null,
+      status: r.status ?? null,
+      createdAt: r.createdAt ?? null,
+
+      // calculados
+      progressPct: computeProgressPct(currentValue, targetValue),
+      health: computeHealth(currentValue, targetValue),
+    } as KRRow;
+  });
 }
 
 export async function createKr(input: {
