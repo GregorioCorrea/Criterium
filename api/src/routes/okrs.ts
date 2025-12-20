@@ -1,13 +1,15 @@
 import { Router } from "express";
 import { createOkr, listOkrs } from "../repos/okrRepo";
 import { getOkrSummary } from "../repos/okrSummaryRepo";
+import { listOkrsWithSummary } from "../repos/okrBoardRepo";
+
 
 
 const router = Router();
 
 router.get("/", async (_req, res, next) => {
   try {
-    const rows = await listOkrs();
+    const rows = await listOkrsWithSummary();
     res.json(rows);
   } catch (err) {
     next(err);
