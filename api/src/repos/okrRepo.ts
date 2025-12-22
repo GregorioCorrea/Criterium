@@ -19,6 +19,7 @@ export async function listOkrs(): Promise<OKRRow[]> {
       CONVERT(varchar(10), to_date, 23) as toDate,
       CONVERT(varchar(19), created_at, 120) as createdAt
     FROM okrs
+    WHERE tenant_id = @tenantId
     ORDER BY created_at DESC
   `);
 }

@@ -4,6 +4,9 @@ import cors from 'cors';
 import morgan from 'morgan';
 import okrRouter from './routes/okrs';
 import krRouter from './routes/krs';
+import { tenantContext } from "./middleware/tenantContext";
+
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,6 +14,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+app.use(tenantContext);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'criterium-node-mvp' });
