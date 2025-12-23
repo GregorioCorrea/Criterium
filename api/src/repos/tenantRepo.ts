@@ -36,3 +36,13 @@ export async function getDefaultTenantId(): Promise<string> {
   cachedTenantId = created[0].id;
   return cachedTenantId;
 }
+
+export async function tenantExists(tenantId: string): Promise<boolean> {
+  const rows = await query<any>(
+    `SELECT TOP 1 1 as ok
+     FROM dbo.tenants
+     WHERE id = CAST(@tenantId as uniqueidentifier)`,
+    { tenantId }
+  );
+  return !!rows[0];
+}

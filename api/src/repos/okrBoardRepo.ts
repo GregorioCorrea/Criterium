@@ -10,7 +10,7 @@ export type OkrBoardRow = {
   summary: OkrSummary;
 };
 
-export async function listOkrsWithSummary(): Promise<OkrBoardRow[]> {
+export async function listOkrsWithSummary(tenantId: string): Promise<OkrBoardRow[]> {
   const okrs = await query<any>(
     `
     SELECT
@@ -20,23 +20,16 @@ export async function listOkrsWithSummary(): Promise<OkrBoardRow[]> {
       CONVERT(varchar(10), to_date, 120) as toDate,
       status
     FROM dbo.okrs
+    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
     ORDER BY from_date DESC
-    `
+    `,
+    { tenantId }
   );
 
   const result: OkrBoardRow[] = [];
-
   for (const o of okrs) {
-    const summary = await getOkrSummary(o.id);
-    result.push({
-      id: o.id,
-      objective: o.objective,
-      fromDate: o.fromDate,
-      toDate: o.toDate,
-      status: o.status,
-      summary,
-    });
+    const summary = await getOkrSummary(tenantId, o.id);
+    result.push({ ...o, summary });
   }
-
   return result;
 }

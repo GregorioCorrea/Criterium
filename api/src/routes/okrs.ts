@@ -7,13 +7,12 @@ import { listOkrsWithSummary } from "../repos/okrBoardRepo";
 
 const router = Router();
 
-router.get("/", async (_req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    const rows = await listOkrsWithSummary();
+    const tenantId = req.tenantId!;
+    const rows = await listOkrsWithSummary(tenantId);
     res.json(rows);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 router.post("/", async (req, res, next) => {
@@ -33,16 +32,11 @@ router.post("/", async (req, res, next) => {
 
 router.get("/:okrId/summary", async (req, res, next) => {
   try {
+    const tenantId = req.tenantId!;
     const { okrId } = req.params;
-    if (!okrId || okrId.trim().length < 10) {
-      return res.status(400).json({ error: "okrId inválido" });
-    }
-
-    const summary = await getOkrSummary(okrId);
+    const summary = await getOkrSummary(tenantId, okrId);
     res.json(summary);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 

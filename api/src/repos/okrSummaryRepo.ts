@@ -23,12 +23,29 @@ function overallFromCounts(counts: Record<KrHealth, number>): KrHealth {
   return "no_target";
 }
 
-export async function getOkrSummary(okrId: string): Promise<OkrSummary> {
-  // Traemos solo lo necesario para calcular health y progress.
+export async function getOkrSummary(tenantId: string, okrId: string): Promise<OkrSummary> {
+  // Validación barata: el OKR tiene que ser del tenant
+  const okrRows = await query<any>(
+    `SELECT TOP 1 1 as ok
+     FROM dbo.okrs
+     WHERE id = CAST(@okrId as uniqueidentifier)
+       AND tenant_id = CAST(@tenantId as uniqueidentifier)`,
+    { okrId, tenantId }
+  );
+
+  if (!okrRows[0]) {
+    return {
+      okrId,
+      krCount: 0,
+      avgProgressPct: null,
+      healthCounts: { no_target: 0, no_checkins: 0, off_track: 0, at_risk: 0, on_track: 0 },
+      overallHealth: "no_target",
+    };
+  }
+
   const rows = await query<any>(
     `
     SELECT
-      CAST(id as varchar(36)) as id,
       target_value as targetValue,
       current_value as currentValue
     FROM dbo.key_results
@@ -52,10 +69,10 @@ export async function getOkrSummary(okrId: string): Promise<OkrSummary> {
     const cv = r.currentValue === null || r.currentValue === undefined ? null : Number(r.currentValue);
     const tv = r.targetValue === null || r.targetValue === undefined ? null : Number(r.targetValue);
 
-    const h = computeHealth(cv, tv);
+    const h = computeHealth(cv, tv);          // ✅ orden correcto
     healthCounts[h]++;
 
-    const pct = computeProgressPct(cv, tv);
+    const pct = computeProgressPct(cv, tv);   // ✅ orden correcto
     if (pct !== null && Number.isFinite(pct)) {
       sumProgress += pct;
       progressN++;
@@ -72,3 +89,4 @@ export async function getOkrSummary(okrId: string): Promise<OkrSummary> {
     overallHealth: overallFromCounts(healthCounts),
   };
 }
+
