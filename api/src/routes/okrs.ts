@@ -2,6 +2,8 @@ import { Router } from "express";
 import { createOkr, listOkrs } from "../repos/okrRepo";
 import { getOkrSummary } from "../repos/okrSummaryRepo";
 import { listOkrsWithSummary } from "../repos/okrBoardRepo";
+import { getOkrDetail } from "../repos/okrDetailRepo";
+
 
 
 
@@ -29,6 +31,21 @@ router.post("/", async (req, res, next) => {
     next(err);
   }
 });
+
+router.get("/:okrId", async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { okrId } = req.params;
+
+    const detail = await getOkrDetail(tenantId, okrId);
+    if (!detail) return res.status(404).json({ error: "okr_not_found" });
+
+    res.json(detail);
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 router.get("/:okrId/summary", async (req, res, next) => {
   try {
