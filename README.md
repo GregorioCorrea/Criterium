@@ -1,5 +1,5 @@
 # Criterium OKR – MVP (Node.js + TypeScript)
-Fecha: 2025-12-12
+Fecha: 2025-12-23
 
 Seed de proyecto para el MVP de Criterium OKR usando Node.js + Express + TypeScript, listo para correr en Azure App Service con Azure SQL.
 
