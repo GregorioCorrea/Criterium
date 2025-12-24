@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet } from "../api";
+import { Link } from "react-router-dom";
+
 
 type OkrBoard = {
   id: string;
@@ -43,7 +45,7 @@ export default function Board() {
           {data.map((o) => (
             <tr key={o.id} style={{ borderBottom: "1px solid #eee" }}>
               <td>
-                <a href={`/okr/${o.id}`}>{o.objective}</a>
+                <Link to={`/okr/${o.id}`}>{o.objective}</Link>
               </td>
               <td>{o.fromDate} → {o.toDate}</td>
               <td>{o.summary?.krCount ?? 0}</td>
