@@ -9,6 +9,7 @@ export async function getTeamsToken(): Promise<string | null> {
       initialized = true;
     }
     const token = await microsoftTeams.authentication.getAuthToken();
+    console.log("TEAMS TOKEN:", token);
     return token;
   } catch (e) {
     console.warn("[teams] getAuthToken failed", e);
