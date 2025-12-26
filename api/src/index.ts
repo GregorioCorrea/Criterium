@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import okrRouter from './routes/okrs';
 import krRouter from './routes/krs';
 import { tenantContext } from "./middleware/tenantContext";
+import { requireAuth } from "./middleware/auth";
 
 
 
@@ -18,6 +19,13 @@ app.use(tenantContext);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'criterium-node-mvp' });
+});
+
+app.get("/whoami", requireAuth, (req, res) => {
+  res.json({
+    tenantId: req.tenantId,
+    userId: req.userId
+  });
 });
 
 app.use('/okrs', okrRouter);

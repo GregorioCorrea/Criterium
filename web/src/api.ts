@@ -1,20 +1,20 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
+import { getTeamsToken } from "./teamsAuth";
 
-if (!API_BASE) {
-  throw new Error("VITE_API_BASE_URL no está seteada (build-time). Revisá web/.env.production o el workflow.");
-}
+const API_BASE = import.meta.env.VITE_API_BASE;
 
-const DEFAULT_TENANT = import.meta.env.VITE_DEFAULT_TENANT_ID as string;
+export async function apiGet<T>(path: string): Promise<T> {
+  const token = await getTeamsToken();
 
-export async function apiGet<T>(path: string, tenantId?: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
-      "x-tenant-id": tenantId ?? DEFAULT_TENANT,
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API ${res.status}: ${body}`);
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
   }
-  return await res.json();
+  return res.json();
 }

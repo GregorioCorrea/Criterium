@@ -1,44 +1,44 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
-  "manifestVersion": "1.16",
-  "version": "0.1.0",
-  "id": "00000000-0000-0000-0000-000000000001",
-  "packageName": "com.incuba.criterium.okr",
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.19/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.19",
+  "version": "1.0.0",
+  "id": "8c8c6db0-5b13-4d6d-9d71-9ef1b5d8a0d1",
+  "developer": {
+    "name": "INCUBA CONSULTORES",
+    "mpnId": "4891338",
+    "websiteUrl": "https://polite-pond-039340b0f.1.azurestaticapps.net",
+    "privacyUrl": "https://polite-pond-039340b0f.1.azurestaticapps.net/privacy",
+    "termsOfUseUrl": "https://polite-pond-039340b0f.1.azurestaticapps.net/terms"
+  },
+  "webApplicationInfo": {
+  "id": "bde54ed0-4aa8-4139-82f8-5af61e3c809f",
+  "resource": "api://bde54ed0-4aa8-4139-82f8-5af61e3c809f"
+  },
   "name": {
     "short": "Criterium OKR",
     "full": "Criterium OKR"
   },
-  "developer": {
-    "name": "Incuba",
-    "mpnId": "YOUR_MPN_ID",
-    "websiteUrl": "https://criterium.app",
-    "privacyUrl": "https://criterium.app/privacy",
-    "termsOfUseUrl": "https://criterium.app/terms"
-  },
   "description": {
-    "short": "Copiloto de ejecuci\u00f3n de OKRs para Microsoft 365.",
-    "full": "Criterium OKR ayuda a descomponer, ejecutar y medir OKRs dentro de Teams, con integraciones a Planner y Azure DevOps."
+    "short": "OKRs dentro de Teams, con salud y progreso.",
+    "full": "Criterium OKR es un tablero de OKRs con health y progreso, pensado para uso dentro de Microsoft Teams."
   },
   "icons": {
     "outline": "outline.png",
     "color": "color.png"
   },
-  "accentColor": "#003366",
+  "accentColor": "#6264A7",
   "staticTabs": [
     {
-      "entityId": "criterium-home",
-      "name": "Criterium",
-      "contentUrl": "https://YOUR_APP_URL/",
-      "scopes": [
-        "personal"
-      ]
+      "entityId": "criterium-board",
+      "name": "OKRs",
+      "contentUrl": "https://polite-pond-039340b0f.1.azurestaticapps.net",
+      "websiteUrl": "https://polite-pond-039340b0f.1.azurestaticapps.net",
+      "scopes": ["personal"]
     }
   ],
-  "bots": [],
-  "permissions": [
-    "identity"
-  ],
+  "permissions": ["identity", "messageTeamMembers"],
   "validDomains": [
-    "YOUR_APP_URL"
+    "polite-pond-039340b0f.1.azurestaticapps.net",
+    "criterium-node-mvp-api.azurewebsites.net"
   ]
 }

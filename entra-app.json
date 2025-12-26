@@ -1,0 +1,107 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#applications/$entity",
+  "addIns": [],
+  "api": {
+    "acceptMappedClaims": null,
+    "knownClientApplications": [],
+    "oauth2PermissionScopes": [],
+    "preAuthorizedApplications": [],
+    "requestedAccessTokenVersion": null
+  },
+  "appId": "bde54ed0-4aa8-4139-82f8-5af61e3c809f",
+  "appRoles": [],
+  "applicationTemplateId": null,
+  "certification": null,
+  "createdDateTime": "2025-12-12T00:18:38Z",
+  "defaultRedirectUri": null,
+  "deletedDateTime": null,
+  "description": null,
+  "disabledByMicrosoftStatus": null,
+  "displayName": "Criterium",
+  "groupMembershipClaims": null,
+  "id": "cfe06f03-1b9f-4594-b859-49b2ce4df0f4",
+  "identifierUris": [],
+  "info": {
+    "logoUrl": null,
+    "marketingUrl": null,
+    "privacyStatementUrl": null,
+    "supportUrl": null,
+    "termsOfServiceUrl": null
+  },
+  "isDeviceOnlyAuthSupported": null,
+  "isFallbackPublicClient": null,
+  "keyCredentials": [],
+  "nativeAuthenticationApisEnabled": null,
+  "notes": null,
+  "optionalClaims": null,
+  "parentalControlSettings": {
+    "countriesBlockedForMinors": [],
+    "legalAgeGroupRule": "Allow"
+  },
+  "passwordCredentials": [
+    {
+      "customKeyIdentifier": null,
+      "displayName": "Azure",
+      "endDateTime": "2027-12-12T15:56:54.335Z",
+      "hint": "xP4",
+      "keyId": "6c8c0ac1-08bb-4329-a084-dbbfb37fbe45",
+      "secretText": null,
+      "startDateTime": "2025-12-12T15:56:54.335Z"
+    }
+  ],
+  "publicClient": {
+    "redirectUris": []
+  },
+  "publisherDomain": "incubaconsultores.com.ar",
+  "requestSignatureVerification": null,
+  "requiredResourceAccess": [
+    {
+      "resourceAccess": [
+        {
+          "id": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
+          "type": "Scope"
+        }
+      ],
+      "resourceAppId": "00000003-0000-0000-c000-000000000000"
+    }
+  ],
+  "samlMetadataUrl": null,
+  "serviceManagementReference": null,
+  "servicePrincipalLockConfiguration": {
+    "allProperties": true,
+    "credentialsWithUsageSign": true,
+    "credentialsWithUsageVerify": true,
+    "identifierUris": false,
+    "isEnabled": true,
+    "tokenEncryptionKeyId": true
+  },
+  "signInAudience": "AzureADMultipleOrgs",
+  "spa": {
+    "redirectUris": []
+  },
+  "tags": [],
+  "tokenEncryptionKeyId": null,
+  "uniqueName": null,
+  "verifiedPublisher": {
+    "addedDateTime": null,
+    "displayName": null,
+    "verifiedPublisherId": null
+  },
+  "web": {
+    "homePageUrl": null,
+    "implicitGrantSettings": {
+      "enableAccessTokenIssuance": false,
+      "enableIdTokenIssuance": false
+    },
+    "logoutUrl": null,
+    "redirectUriSettings": [
+      {
+        "index": null,
+        "uri": "https://criterium-node-mvp-api.azurewebsites.net/auth/entra/callback"
+      }
+    ],
+    "redirectUris": [
+      "https://criterium-node-mvp-api.azurewebsites.net/auth/entra/callback"
+    ]
+  }
+}

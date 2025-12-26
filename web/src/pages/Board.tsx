@@ -49,7 +49,7 @@ export default function Board() {
               </td>
               <td>{o.fromDate} → {o.toDate}</td>
               <td>{o.summary?.krCount ?? 0}</td>
-              <td>{o.summary?.avgProgressPct ?? "-"}%</td>
+              <td>{o.summary?.avgProgressPct === null ? "-" : `${o.summary.avgProgressPct}%`}</td>
               <td>{o.summary?.overallHealth ?? "-"}</td>
             </tr>
           ))}
