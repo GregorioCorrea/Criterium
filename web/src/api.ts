@@ -1,6 +1,6 @@
 import { getTeamsToken } from "./teamsAuth";
 
-const API_BASE = import.meta.env.VITE_API_BASE;
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 export async function apiGet<T>(path: string): Promise<T> {
   const token = await getTeamsToken();
