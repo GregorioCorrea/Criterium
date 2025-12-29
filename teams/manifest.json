@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.19/MicrosoftTeams.schema.json",
   "manifestVersion": "1.19",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "id": "8c8c6db0-5b13-4d6d-9d71-9ef1b5d8a0d1",
   "developer": {
     "name": "INCUBA CONSULTORES",
@@ -12,7 +12,7 @@
   },
   "webApplicationInfo": {
   "id": "bde54ed0-4aa8-4139-82f8-5af61e3c809f",
-  "resource": "api://bde54ed0-4aa8-4139-82f8-5af61e3c809f"
+  "resource": "api://polite-pond-039340b0f.1.azurestaticapps.net/bde54ed0-4aa8-4139-82f8-5af61e3c809f"
   },
   "name": {
     "short": "Criterium OKR",
