@@ -1,43 +1,26 @@
 import sql from "mssql";
 
-let pool: sql.ConnectionPool | null = null;
-
-export function getConnString(): string {
-  const cs = process.env.SQL_CONNECTION_STRING;
-  if (!cs) {
-    throw new Error("SQL_CONNECTION_STRING no está seteada en el environment.");
-  }
-  return cs;
+const connString = process.env.SQL_CONNECTION_STRING;
+if (!connString) {
+  throw new Error("SQL_CONNECTION_STRING no está configurada");
 }
 
-export async function getPool(): Promise<sql.ConnectionPool> {
-  if (pool) return pool;
+const pool = new sql.ConnectionPool(connString);
+const poolConnect = pool.connect();
 
-  const connString = getConnString();
-  pool = await sql.connect(connString);
-
-  // Si se cae, permitimos que se re-inicialice
-  pool.on("error", (err) => {
-    console.error("SQL pool error:", err);
-    pool = null;
-  });
-
-  return pool;
-}
-
-export async function query<T = any>(
-  text: string,
-  params?: Record<string, unknown>
+export async function query<T>(
+  sqlText: string,
+  params?: Record<string, any>
 ): Promise<T[]> {
-  const p = await getPool();
-  const req = p.request();
+  await poolConnect;
+  const req = pool.request();
 
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      req.input(k, v as any);
+      req.input(k, v);
     }
   }
 
-  const result = await req.query(text);
-  return (result.recordset ?? []) as T[];
+  const result = await req.query(sqlText);
+  return result.recordset as T[];
 }
