@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 
-const TENANT_ID = process.env.AAD_TENANT_ID!;
+const TENANT_ID = process.env.AAD_TENANT_ID;
 const CLIENT_ID = process.env.AAD_CLIENT_ID!;
 const AUDIENCE = process.env.AAD_AUDIENCE!;
 
 const jwks = createRemoteJWKSet(
-  new URL(`https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys`)
+  new URL("https://login.microsoftonline.com/common/discovery/v2.0/keys")
 );
 
 export async function requireAuth(
@@ -24,17 +24,26 @@ export async function requireAuth(
   try {
     const { payload } = await jwtVerify(token, jwks, {
       audience: [AUDIENCE, CLIENT_ID].filter(Boolean),
-      issuer: [
-        `https://sts.windows.net/${TENANT_ID}/`,
-        `https://login.microsoftonline.com/${TENANT_ID}/v2.0`,
-      ],
     });
 
     if (!payload.tid || !payload.oid) {
       return res.status(401).json({ error: "invalid_token_claims" });
     }
 
-    req.tenantId = payload.tid as string;
+    const tid = payload.tid as string;
+    const iss = payload.iss as string | undefined;
+    const allowedIssuers = [
+      `https://sts.windows.net/${tid}/`,
+      `https://login.microsoftonline.com/${tid}/v2.0`,
+    ];
+    if (!iss || !allowedIssuers.includes(iss)) {
+      return res.status(401).json({ error: "invalid_token_issuer" });
+    }
+    if (TENANT_ID && TENANT_ID !== tid) {
+      return res.status(401).json({ error: "invalid_tenant" });
+    }
+
+    req.tenantId = tid;
     req.userId = payload.oid as string;
 
     next();
