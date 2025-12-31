@@ -10,7 +10,7 @@ export type CheckinRow = {
   createdByUserId: string | null;
 };
 
-export async function listCheckinsByKr(krId: string) {
+export async function listCheckinsByKr(tenantId: string, krId: string) {
   // NOTA: pasamos krId como string, pero SQL lo castea a uniqueidentifier de forma explícita
   const rows = await query<any>(
     `
@@ -23,10 +23,11 @@ export async function listCheckinsByKr(krId: string) {
       created_at,
       created_by_user_id
     FROM dbo.kr_checkins
-    WHERE key_result_id = CAST(@krId AS uniqueidentifier)
+    WHERE tenant_id = CAST(@tenantId AS uniqueidentifier)
+      AND key_result_id = CAST(@krId AS uniqueidentifier)
     ORDER BY created_at DESC
     `,
-    { krId }
+    { tenantId, krId }
   );
 
   // Convertimos a string en JS, que no falla.

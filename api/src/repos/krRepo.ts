@@ -1,16 +1,24 @@
 import { query } from "../db";
 import { computeHealth, computeProgressPct } from "../domain/krHealth";
+import { KrRisk } from "../domain/insights";
 
 
 
-export async function updateKrCurrentValue(krId: string, value: number): Promise<void> {
+export async function updateKrCurrentValue(
+  tenantId: string,
+  krId: string,
+  value: number
+): Promise<void> {
   await query(
     `
-    UPDATE dbo.key_results
+    UPDATE kr
     SET current_value = @value
-    WHERE id = @krId
+    FROM dbo.key_results kr
+    INNER JOIN dbo.okrs o ON kr.okr_id = o.id
+    WHERE kr.id = @krId
+      AND o.tenant_id = @tenantId
     `,
-    { krId, value }
+    { tenantId, krId, value }
   );
 }
 
@@ -28,27 +36,46 @@ export type KRRow = {
   // calculados
   progressPct: number | null;
   health: "no_target" | "no_checkins" | "off_track" | "at_risk" | "on_track";
+
+  insights?: {
+    explanationShort: string;
+    explanationLong?: string;
+    suggestion: string;
+    risk: KrRisk | null;
+    computedAt: string;
+    source: string;
+  } | null;
 };
 
 
-export async function listKrsByOkr(okrId: string): Promise<KRRow[]> {
+export async function listKrsByOkr(tenantId: string, okrId: string): Promise<KRRow[]> {
   const rows = await query<any>(
     `
     SELECT
-      CAST(id as varchar(36)) as id,
-      CAST(okr_id as varchar(36)) as okrId,
-      title,
-      metric_name as metricName,
-      target_value as targetValue,
-      current_value as currentValue,
-      unit,
-      status,
-      CONVERT(varchar(19), created_at, 120) as createdAt
-    FROM dbo.key_results
-    WHERE okr_id = @okrId
-    ORDER BY created_at ASC
+      CAST(kr.id as varchar(36)) as id,
+      CAST(kr.okr_id as varchar(36)) as okrId,
+      kr.title,
+      kr.metric_name as metricName,
+      kr.target_value as targetValue,
+      kr.current_value as currentValue,
+      kr.unit,
+      kr.status,
+      CONVERT(varchar(19), kr.created_at, 120) as createdAt,
+      ki.explanation_short as insightShort,
+      ki.explanation_long as insightLong,
+      ki.suggestion as insightSuggestion,
+      ki.risk as insightRisk,
+      CONVERT(varchar(19), ki.computed_at, 120) as insightComputedAt,
+      ki.source as insightSource
+    FROM dbo.key_results kr
+    INNER JOIN dbo.okrs o ON kr.okr_id = o.id
+    LEFT JOIN dbo.KrInsights ki
+      ON ki.kr_id = kr.id AND ki.tenant_id = @tenantId
+    WHERE kr.okr_id = @okrId
+      AND o.tenant_id = @tenantId
+    ORDER BY kr.created_at ASC
     `,
-    { okrId }
+    { tenantId, okrId }
   );
 
   return rows.map((r: any) => {
@@ -71,6 +98,16 @@ export async function listKrsByOkr(okrId: string): Promise<KRRow[]> {
       // calculados
       progressPct: computeProgressPct(currentValue, targetValue),
       health: computeHealth(currentValue, targetValue),
+      insights: r.insightShort
+        ? {
+            explanationShort: String(r.insightShort),
+            explanationLong: r.insightLong ? String(r.insightLong) : undefined,
+            suggestion: r.insightSuggestion ? String(r.insightSuggestion) : "",
+            risk: r.insightRisk ?? null,
+            computedAt: r.insightComputedAt ? String(r.insightComputedAt) : "",
+            source: r.insightSource ? String(r.insightSource) : "",
+          }
+        : null,
     } as KRRow;
   });
 }
@@ -110,4 +147,43 @@ export async function createKr(input: {
 
   if (!rows[0]) throw new Error("No se pudo crear el KR.");
   return rows[0];
+}
+
+export async function getKrById(
+  tenantId: string,
+  krId: string
+): Promise<{
+  id: string;
+  okrId: string;
+  targetValue: number | null;
+  currentValue: number | null;
+} | null> {
+  const rows = await query<any>(
+    `
+    SELECT TOP 1
+      CAST(kr.id as varchar(36)) as id,
+      CAST(kr.okr_id as varchar(36)) as okrId,
+      kr.target_value as targetValue,
+      kr.current_value as currentValue
+    FROM dbo.key_results kr
+    INNER JOIN dbo.okrs o ON kr.okr_id = o.id
+    WHERE kr.id = @krId
+      AND o.tenant_id = @tenantId
+    `,
+    { tenantId, krId }
+  );
+
+  if (!rows[0]) return null;
+  return {
+    id: String(rows[0].id),
+    okrId: String(rows[0].okrId),
+    targetValue:
+      rows[0].targetValue === null || rows[0].targetValue === undefined
+        ? null
+        : Number(rows[0].targetValue),
+    currentValue:
+      rows[0].currentValue === null || rows[0].currentValue === undefined
+        ? null
+        : Number(rows[0].currentValue),
+  };
 }

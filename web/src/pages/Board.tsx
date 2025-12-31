@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { apiGet } from "../api";
 import { Link } from "react-router-dom";
 
-
 type OkrBoard = {
   id: string;
   objective: string;
@@ -14,6 +13,12 @@ type OkrBoard = {
     avgProgressPct: number | null;
     overallHealth: string;
   };
+  insights?: {
+    explanationShort: string;
+    suggestion: string;
+    computedAt: string;
+    source: string;
+  } | null;
 };
 
 export default function Board() {
@@ -39,6 +44,7 @@ export default function Board() {
             <th>KRs</th>
             <th>Progreso</th>
             <th>Health</th>
+            <th>Why</th>
           </tr>
         </thead>
         <tbody>
@@ -47,10 +53,13 @@ export default function Board() {
               <td>
                 <Link to={`/okr/${o.id}`}>{o.objective}</Link>
               </td>
-              <td>{o.fromDate} → {o.toDate}</td>
+              <td>
+                {o.fromDate} - {o.toDate}
+              </td>
               <td>{o.summary?.krCount ?? 0}</td>
               <td>{o.summary?.avgProgressPct === null ? "-" : `${o.summary.avgProgressPct}%`}</td>
               <td>{o.summary?.overallHealth ?? "-"}</td>
+              <td>{o.insights?.explanationShort ?? "—"}</td>
             </tr>
           ))}
         </tbody>

@@ -54,3 +54,16 @@ export async function createOkr(
   if (!rows[0]) throw new Error("OKR not created");
   return rows[0];
 }
+
+export async function okrExists(tenantId: string, okrId: string): Promise<boolean> {
+  const rows = await query<any>(
+    `
+    SELECT TOP 1 1 as ok
+    FROM dbo.okrs
+    WHERE id = CAST(@okrId as uniqueidentifier)
+      AND tenant_id = CAST(@tenantId as uniqueidentifier)
+    `,
+    { tenantId, okrId }
+  );
+  return !!rows[0];
+}

@@ -1,22 +1,27 @@
 import { Router } from "express";
-import { createKr, listKrsByOkr } from "../repos/krRepo";
-import { getDefaultTenantId } from "../repos/tenantRepo";
+import { createKr, getKrById, listKrsByOkr, updateKrCurrentValue } from "../repos/krRepo";
 import { createCheckin, listCheckinsByKr } from "../repos/checkinRepo";
-import { updateKrCurrentValue } from "../repos/krRepo";
+import { requireAuth } from "../middleware/auth";
+import { requireTenant } from "../middleware/tenantContext";
+import { okrExists } from "../repos/okrRepo";
+import { getKrInsightsByKrId } from "../repos/insightsRepo";
+import { recomputeKrAndOkrInsights } from "../services/insights";
 
 const router = Router();
 
-// GET /krs/:okrId  -> lista KRs del OKR
+router.use(requireAuth, requireTenant);
+
+// GET /krs/:okrId -> lista KRs del OKR
 router.get("/:okrId", async (req, res, next) => {
   try {
-    const rows = await listKrsByOkr(req.params.okrId);
+    const rows = await listKrsByOkr(req.tenantId!, req.params.okrId);
     res.json(rows);
   } catch (err) {
     next(err);
   }
 });
 
-// POST /krs  -> crea KR
+// POST /krs -> crea KR
 router.post("/", async (req, res, next) => {
   try {
     const { okrId, title, metricName, targetValue, unit } = req.body ?? {};
@@ -25,13 +30,20 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ error: "okrId y title son obligatorios" });
     }
 
+    const okrOk = await okrExists(req.tenantId!, String(okrId));
+    if (!okrOk) {
+      return res.status(404).json({ error: "okr_not_found" });
+    }
+
     const created = await createKr({
-      okrId,
+      okrId: String(okrId),
       title,
       metricName,
       targetValue,
       unit,
     });
+
+    await recomputeKrAndOkrInsights(req.tenantId!, created.id);
 
     res.status(201).json(created);
   } catch (err) {
@@ -39,16 +51,14 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-
-
 // GET /krs/:krId/checkins
 router.get("/:krId/checkins", async (req, res, next) => {
   const krId = req.params.krId;
   if (!krId || krId.trim().length < 10) {
-    return res.status(400).json({ error: "krId inválido" });
+    return res.status(400).json({ error: "krId invalido" });
   }
   try {
-    const rows = await listCheckinsByKr(req.params.krId);
+    const rows = await listCheckinsByKr(req.tenantId!, req.params.krId);
     res.json(rows);
   } catch (err) {
     next(err);
@@ -59,29 +69,47 @@ router.get("/:krId/checkins", async (req, res, next) => {
 router.post("/:krId/checkins", async (req, res, next) => {
   const krId = req.params.krId;
   if (!krId || krId.trim().length < 10) {
-    return res.status(400).json({ error: "krId inválido" });
+    return res.status(400).json({ error: "krId invalido" });
   }
   try {
     const { value, comment } = req.body ?? {};
 
     if (value === undefined || value === null || Number.isNaN(Number(value))) {
-      return res.status(400).json({ error: "value (numérico) es obligatorio" });
+      return res.status(400).json({ error: "value (numerico) es obligatorio" });
     }
 
-    const tenantId = await getDefaultTenantId();
+    const kr = await getKrById(req.tenantId!, req.params.krId);
+    if (!kr) {
+      return res.status(404).json({ error: "kr_not_found" });
+    }
 
     const created = await createCheckin({
-      tenantId,
+      tenantId: req.tenantId!,
       krId: req.params.krId,
       value: Number(value),
       comment: comment ?? null,
       createdByUserId: null,
     });
 
-    // Actualizamos current_value del KR al último check-in
-    await updateKrCurrentValue(req.params.krId, Number(value));
+    // Actualizamos current_value del KR al ultimo check-in
+    await updateKrCurrentValue(req.tenantId!, req.params.krId, Number(value));
+
+    await recomputeKrAndOkrInsights(req.tenantId!, req.params.krId);
 
     res.status(201).json(created);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /krs/:krId/insights
+router.get("/:krId/insights", async (req, res, next) => {
+  try {
+    const insight = await getKrInsightsByKrId(req.tenantId!, req.params.krId);
+    if (!insight) {
+      return res.status(404).json({ error: "kr_insights_not_found" });
+    }
+    res.json(insight);
   } catch (err) {
     next(err);
   }
