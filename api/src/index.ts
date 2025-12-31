@@ -4,7 +4,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 import okrRouter from './routes/okrs';
 import krRouter from './routes/krs';
-import { requireTenant } from "./middleware/tenantContext";
 import { requireAuth } from "./middleware/auth";
 
 
@@ -12,11 +11,14 @@ import { requireAuth } from "./middleware/auth";
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 app.use(morgan('dev'));
-app.use(requireTenant);
-
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'criterium-node-mvp' });
 });
