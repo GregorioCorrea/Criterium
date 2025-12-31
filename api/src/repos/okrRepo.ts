@@ -25,6 +25,7 @@ export async function listOkrsByTenant(
     `,
     { tenantId }
   );
+  console.log("Listing OKRs for tenant:", tenantId);
 }
 
 export async function createOkr(
