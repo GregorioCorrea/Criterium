@@ -23,8 +23,11 @@ export async function requireAuth(
 
   try {
     const { payload } = await jwtVerify(token, jwks, {
-      audience: AUDIENCE,
-      issuer: `https://sts.windows.net/${TENANT_ID}/`,
+      audience: [AUDIENCE, CLIENT_ID].filter(Boolean),
+      issuer: [
+        `https://sts.windows.net/${TENANT_ID}/`,
+        `https://login.microsoftonline.com/${TENANT_ID}/v2.0`,
+      ],
     });
 
     if (!payload.tid || !payload.oid) {
