@@ -109,6 +109,7 @@ ${JSON.stringify(input)}
 
   try {
     const result = await ai.chat.completions.create({
+      model: DEPLOYMENT ?? "",
       messages: [{ role: "developer", content: prompt }],
       max_completion_tokens: 500,
       temperature: 0.2,
@@ -144,6 +145,7 @@ ${JSON.stringify(input)}
 
   try {
     const result = await ai.chat.completions.create({
+      model: DEPLOYMENT ?? "",
       messages: [{ role: "developer", content: prompt }],
       max_completion_tokens: 500,
       temperature: 0.2,
