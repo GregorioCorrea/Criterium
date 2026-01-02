@@ -43,7 +43,13 @@ router.get("/status", async (_req, res) => {
       source: "ai",
       checkedAt: new Date().toISOString(),
     });
-  } catch {
+  } catch (err: any) {
+    console.warn("[ai] status check failed", {
+      name: err?.name,
+      message: err?.message,
+      status: err?.status,
+      code: err?.code,
+    });
     return res.json({
       enabled: true,
       ok: false,
