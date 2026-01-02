@@ -115,7 +115,12 @@ ${JSON.stringify(input)}
       suggestedKrs,
       warnings: parsed.warnings?.map((w) => String(w)) ?? [],
     };
-  } catch {
+  } catch (err: any) {
+    console.warn("[ai] draft okr failed", {
+      message: err?.message,
+      status: err?.status,
+      code: err?.code,
+    });
     return null;
   }
 }

@@ -97,6 +97,12 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         existingKrTitles: krs.map((k) => k.title).filter(Boolean),
         answers,
       });
+      if (res.warnings?.includes("ai_unavailable") || res.suggestedKrs.length === 0) {
+        setErr("La IA no pudo generar KRs. Probá nuevamente en unos minutos.");
+        setDraft(res);
+        setQuestions(res.questions ?? []);
+        return;
+      }
       setDraft(res);
       setQuestions(res.questions ?? []);
       const incoming = res.suggestedKrs.map((kr) => ({
@@ -238,7 +244,11 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
           <h3>KRs propuestos</h3>
           {draft?.warnings?.length ? (
-            <div style={{ color: "#a6adbb" }}>{draft.warnings.join(" • ")}</div>
+            <div style={{ color: "#a6adbb" }}>
+              {draft.warnings
+                .map((w) => (w === "ai_unavailable" ? "IA no disponible" : w))
+                .join(" • ")}
+            </div>
           ) : null}
           {questions.length > 0 && (
             <div style={{ display: "grid", gap: 8 }}>
