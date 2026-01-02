@@ -53,6 +53,12 @@ function getClient(): AzureOpenAI | null {
   if (!ENDPOINT || !DEPLOYMENT) return null;
   if (client) return client;
 
+  console.log("[ai] Azure OpenAI enabled", {
+    endpoint: ENDPOINT,
+    deployment: DEPLOYMENT,
+    apiVersion: API_VERSION,
+  });
+
   const credential = new DefaultAzureCredential();
   const scope = "https://cognitiveservices.azure.com/.default";
   const azureADTokenProvider = getBearerTokenProvider(credential, scope);
@@ -113,8 +119,10 @@ ${JSON.stringify(input)}
     if (!parsed) return null;
     const risk = normalizeRisk(parsed.risk);
     if (!risk) return null;
+    console.log("[ai] KR insights generated");
     return { ...parsed, risk };
   } catch {
+    console.warn("[ai] KR insights failed");
     return null;
   }
 }
@@ -144,8 +152,10 @@ ${JSON.stringify(input)}
     const content = result.choices[0]?.message?.content ?? "";
     const parsed = safeParseJson<OkrAiOutput>(content);
     if (!parsed) return null;
+    console.log("[ai] OKR insights generated");
     return parsed;
   } catch {
+    console.warn("[ai] OKR insights failed");
     return null;
   }
 }

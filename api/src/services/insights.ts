@@ -36,6 +36,12 @@ export async function recomputeKrAndOkrInsights(tenantId: string, krId: string):
 
   const krInsight = krInsightAi ?? krInsightRules;
 
+  console.log("[insights] KR", {
+    krId: kr.id,
+    tenantId,
+    source: krInsightAi ? "ai" : "rules",
+  });
+
   await upsertKrInsights({
     tenantId,
     krId: kr.id,
@@ -89,6 +95,12 @@ export async function recomputeOkrInsights(tenantId: string, okrId: string): Pro
   });
 
   const okrInsight = okrInsightAi ?? okrInsightRules;
+
+  console.log("[insights] OKR", {
+    okrId,
+    tenantId,
+    source: okrInsightAi ? "ai" : "rules",
+  });
 
   await upsertOkrInsights({
     tenantId,
