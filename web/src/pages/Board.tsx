@@ -35,7 +35,15 @@ export default function Board() {
   if (err) return <pre>{err}</pre>;
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui" }}>
+    <div
+      style={{
+        padding: 16,
+        fontFamily: "system-ui",
+        color: "#e6e6e6",
+        background: "#0b0f14",
+        minHeight: "100vh",
+      }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <h2>Criterium OKRs</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

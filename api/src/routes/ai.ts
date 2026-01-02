@@ -12,8 +12,6 @@ import { getAiClient, getAiDeployment, isAiEnabled, withRetry } from "../service
 
 const router = Router();
 
-router.use(requireAuth, requireTenant);
-
 router.get("/status", async (_req, res) => {
   const enabled = isAiEnabled();
   const deployment = getAiDeployment();
@@ -54,6 +52,8 @@ router.get("/status", async (_req, res) => {
     });
   }
 });
+
+router.use(requireAuth, requireTenant);
 
 router.post("/okr/draft", async (req, res) => {
   const { objective, fromDate, toDate, context } = req.body ?? {};

@@ -54,6 +54,10 @@ td {
   border-color: var(--border);
 }
 
+th {
+  color: var(--muted);
+}
+
 input,
 textarea,
 select {

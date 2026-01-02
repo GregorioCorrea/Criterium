@@ -79,7 +79,15 @@ export default function OkrDetail() {
   if (!data) return <div style={{ padding: 16 }}>Cargando.</div>;
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui" }}>
+    <div
+      style={{
+        padding: 16,
+        fontFamily: "system-ui",
+        color: "#e6e6e6",
+        background: "#0b0f14",
+        minHeight: "100vh",
+      }}
+    >
       <div style={{ marginBottom: 12 }}>
         <Link to="/">{"<"} Volver</Link>
       </div>
