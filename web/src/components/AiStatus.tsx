@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { apiGet } from "../api";
 
 type AiStatusResponse = {
@@ -17,7 +18,7 @@ export default function AiStatus() {
   }, []);
 
   const ok = status?.enabled && status?.ok;
-  const dotStyle: React.CSSProperties = {
+  const dotStyle: CSSProperties = {
     width: 12,
     height: 12,
     borderRadius: 999,
