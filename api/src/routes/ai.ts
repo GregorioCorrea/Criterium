@@ -30,8 +30,8 @@ router.get("/status", async (_req, res) => {
       () =>
         client.chat.completions.create({
           model: deployment,
-          messages: [{ role: "developer", content: "ping" }],
-          max_completion_tokens: 1,
+          messages: [{ role: "developer", content: "Responde solo: OK" }],
+          max_completion_tokens: 16,
         }),
       0
     );
