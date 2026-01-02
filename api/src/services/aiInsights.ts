@@ -70,7 +70,6 @@ ${JSON.stringify(input)}
       model: AI_DEPLOYMENT ?? "",
       messages: [{ role: "developer", content: prompt }],
       max_completion_tokens: 500,
-      temperature: 0.2,
     }), 1);
 
     const content = result.choices[0]?.message?.content ?? "";
@@ -106,7 +105,6 @@ ${JSON.stringify(input)}
       model: AI_DEPLOYMENT ?? "",
       messages: [{ role: "developer", content: prompt }],
       max_completion_tokens: 500,
-      temperature: 0.2,
     }), 1);
 
     const content = result.choices[0]?.message?.content ?? "";

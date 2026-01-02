@@ -86,7 +86,6 @@ ${JSON.stringify(input)}
           model: AI_DEPLOYMENT ?? "",
           messages: [{ role: "developer", content: prompt }],
           max_completion_tokens: 700,
-          temperature: 0.3,
         }),
       1
     );
@@ -144,7 +143,6 @@ ${JSON.stringify(input)}
           model: AI_DEPLOYMENT ?? "",
           messages: [{ role: "developer", content: prompt }],
           max_completion_tokens: 700,
-          temperature: 0.2,
         }),
       1
     );
@@ -191,7 +189,6 @@ ${JSON.stringify(input)}
           model: AI_DEPLOYMENT ?? "",
           messages: [{ role: "developer", content: prompt }],
           max_completion_tokens: 500,
-          temperature: 0.2,
         }),
       1
     );

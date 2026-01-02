@@ -32,7 +32,6 @@ router.get("/status", async (_req, res) => {
           model: deployment,
           messages: [{ role: "developer", content: "ping" }],
           max_completion_tokens: 1,
-          temperature: 0,
         }),
       0
     );
