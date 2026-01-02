@@ -67,3 +67,32 @@ export async function okrExists(tenantId: string, okrId: string): Promise<boolea
   );
   return !!rows[0];
 }
+
+export async function getOkrById(
+  tenantId: string,
+  okrId: string
+): Promise<{ id: string; objective: string; fromDate: string; toDate: string; status: string } | null> {
+  const rows = await query<any>(
+    `
+    SELECT TOP 1
+      CAST(id as varchar(36)) as id,
+      objective,
+      CONVERT(varchar(10), from_date, 120) as fromDate,
+      CONVERT(varchar(10), to_date, 120) as toDate,
+      status
+    FROM dbo.okrs
+    WHERE id = CAST(@okrId as uniqueidentifier)
+      AND tenant_id = CAST(@tenantId as uniqueidentifier)
+    `,
+    { tenantId, okrId }
+  );
+
+  if (!rows[0]) return null;
+  return {
+    id: String(rows[0].id),
+    objective: String(rows[0].objective),
+    fromDate: String(rows[0].fromDate),
+    toDate: String(rows[0].toDate),
+    status: String(rows[0].status),
+  };
+}

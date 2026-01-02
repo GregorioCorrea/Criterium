@@ -155,16 +155,22 @@ export async function getKrById(
 ): Promise<{
   id: string;
   okrId: string;
+  title: string;
+  metricName: string | null;
   targetValue: number | null;
   currentValue: number | null;
+  unit: string | null;
 } | null> {
   const rows = await query<any>(
     `
     SELECT TOP 1
       CAST(kr.id as varchar(36)) as id,
       CAST(kr.okr_id as varchar(36)) as okrId,
+      kr.title,
+      kr.metric_name as metricName,
       kr.target_value as targetValue,
-      kr.current_value as currentValue
+      kr.current_value as currentValue,
+      kr.unit as unit
     FROM dbo.key_results kr
     INNER JOIN dbo.okrs o ON kr.okr_id = o.id
     WHERE kr.id = @krId
@@ -177,6 +183,8 @@ export async function getKrById(
   return {
     id: String(rows[0].id),
     okrId: String(rows[0].okrId),
+    title: String(rows[0].title),
+    metricName: rows[0].metricName ?? null,
     targetValue:
       rows[0].targetValue === null || rows[0].targetValue === undefined
         ? null
@@ -185,5 +193,6 @@ export async function getKrById(
       rows[0].currentValue === null || rows[0].currentValue === undefined
         ? null
         : Number(rows[0].currentValue),
+    unit: rows[0].unit ?? null,
   };
 }
