@@ -33,6 +33,8 @@ body {
 
 #root {
   width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 a {
@@ -110,6 +112,52 @@ button:hover {
 
 .ai-dot--off {
   background: var(--off);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-panel {
+  width: min(900px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--text);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modal-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.modal-close {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
 }
 
 @media (prefers-color-scheme: light) {

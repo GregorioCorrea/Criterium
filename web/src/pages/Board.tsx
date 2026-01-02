@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { apiGet } from "../api";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AiStatus from "../components/AiStatus";
+import { useState } from "react";
+import NewOkrModal from "../components/NewOkrModal";
 
 type OkrBoard = {
   id: string;
@@ -25,6 +27,8 @@ type OkrBoard = {
 export default function Board() {
   const [data, setData] = useState<OkrBoard[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     apiGet<OkrBoard[]>("/okrs")
@@ -44,13 +48,13 @@ export default function Board() {
         minHeight: "100vh",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <h2>Criterium OKRs</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <AiStatus />
-          <Link to="/okr/new">Nuevo OKR</Link>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <h2>Criterium OKRs</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <AiStatus />
+            <button onClick={() => setShowNew(true)}>Nuevo OKR</button>
+          </div>
         </div>
-      </div>
       <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
@@ -79,6 +83,12 @@ export default function Board() {
           ))}
         </tbody>
       </table>
+      {showNew && (
+        <NewOkrModal
+          onClose={() => setShowNew(false)}
+          onCreated={(okrId) => navigate(`/okr/${okrId}`)}
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Board from "./pages/Board";
 import OkrDetail from "./pages/OkrDetail";
 import NewOkr from "./pages/NewOkr";
+import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

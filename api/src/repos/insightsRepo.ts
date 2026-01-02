@@ -38,7 +38,7 @@ export async function upsertKrInsights(input: {
 }): Promise<KrInsightsRow> {
   const rows = await query<KrInsightsRow>(
     `
-    MERGE dbo.KrInsights AS target
+    ;MERGE dbo.KrInsights AS target
     USING (
       SELECT
         CAST(@tenantId as uniqueidentifier) as tenant_id,
@@ -102,7 +102,7 @@ export async function upsertOkrInsights(input: {
 }): Promise<OkrInsightsRow> {
   const rows = await query<OkrInsightsRow>(
     `
-    MERGE dbo.OkrInsights AS target
+    ;MERGE dbo.OkrInsights AS target
     USING (
       SELECT
         CAST(@tenantId as uniqueidentifier) as tenant_id,
