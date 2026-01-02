@@ -4,6 +4,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import okrRouter from './routes/okrs';
 import krRouter from './routes/krs';
+import aiRouter from './routes/ai';
 import { requireAuth } from "./middleware/auth";
 
 
@@ -32,6 +33,7 @@ app.get("/whoami", requireAuth, (req, res) => {
 
 app.use('/okrs', okrRouter);
 app.use('/krs', krRouter);
+app.use('/ai', aiRouter);
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error("API error:", err);

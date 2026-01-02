@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet } from "../api";
 import { Link } from "react-router-dom";
+import AiStatus from "../components/AiStatus";
 
 type OkrBoard = {
   id: string;
@@ -35,7 +36,13 @@ export default function Board() {
 
   return (
     <div style={{ padding: 16, fontFamily: "system-ui" }}>
-      <h2>Criterium OKRs</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <h2>Criterium OKRs</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <AiStatus />
+          <Link to="/okr/new">Nuevo OKR</Link>
+        </div>
+      </div>
       <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>

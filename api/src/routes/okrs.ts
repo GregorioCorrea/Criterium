@@ -5,7 +5,9 @@ import { listOkrsWithSummary } from "../repos/okrBoardRepo";
 import { getOkrDetail } from "../repos/okrDetailRepo";
 import { createOkr } from "../repos/okrRepo";
 import { getOkrInsightsByOkrId } from "../repos/insightsRepo";
-import { ensureInitialOkrInsights } from "../services/insights";
+import { ensureInitialOkrInsights, recomputeKrAndOkrInsights } from "../services/insights";
+import { createKr } from "../repos/krRepo";
+import { aiValidateOkr, ruleValidateOkr } from "../services/aiOkr";
 
 const router = Router();
 
@@ -38,6 +40,53 @@ router.post("/", async (req, res) => {
   const okr = await createOkr(req.tenantId!, req.body);
   await ensureInitialOkrInsights(req.tenantId!, okr.id);
   res.status(201).json(okr);
+});
+
+router.post("/with-krs", async (req, res) => {
+  const { objective, fromDate, toDate, krs } = req.body ?? {};
+  if (!objective || !fromDate || !toDate || !Array.isArray(krs)) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+
+  const aiRequired = (process.env.INSIGHTS_AI_ENABLED || "").toLowerCase() === "true";
+  let validation = await aiValidateOkr({ objective, fromDate, toDate, krs });
+  if (!validation) {
+    if (aiRequired) {
+      return res.status(502).json({ error: "ai_unavailable" });
+    }
+    validation = ruleValidateOkr({
+      objective,
+      fromDate,
+      toDate,
+      krs: krs.map((kr: any) => ({ title: kr.title, targetValue: kr.targetValue })),
+    });
+  }
+
+  const hasHigh = validation.issues?.some((i) => i.severity === "high");
+  if (hasHigh) {
+    return res.status(400).json({ error: "ai_validation_failed", issues: validation.issues });
+  }
+
+  const okr = await createOkr(req.tenantId!, { objective, fromDate, toDate });
+  await ensureInitialOkrInsights(req.tenantId!, okr.id);
+
+  const createdKrs = [];
+  for (const kr of krs) {
+    if (!kr.title || kr.targetValue === null || kr.targetValue === undefined) {
+      return res.status(400).json({ error: "kr_target_missing" });
+    }
+    const created = await createKr({
+      okrId: okr.id,
+      title: String(kr.title),
+      metricName: kr.metricName ?? null,
+      targetValue: Number(kr.targetValue),
+      unit: kr.unit ?? null,
+    });
+    createdKrs.push(created);
+    await recomputeKrAndOkrInsights(req.tenantId!, created.id);
+  }
+
+  res.status(201).json({ okr, krs: createdKrs, validation });
 });
 
 export default router;

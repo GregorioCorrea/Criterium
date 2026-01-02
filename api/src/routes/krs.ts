@@ -6,6 +6,7 @@ import { requireTenant } from "../middleware/tenantContext";
 import { okrExists } from "../repos/okrRepo";
 import { getKrInsightsByKrId } from "../repos/insightsRepo";
 import { recomputeKrAndOkrInsights } from "../services/insights";
+import { aiValidateKr, ruleValidateKr } from "../services/aiOkr";
 
 const router = Router();
 
@@ -29,23 +30,39 @@ router.post("/", async (req, res, next) => {
     if (!okrId || !title) {
       return res.status(400).json({ error: "okrId y title son obligatorios" });
     }
+    if (targetValue === null || targetValue === undefined || Number.isNaN(Number(targetValue))) {
+      return res.status(400).json({ error: "targetValue es obligatorio" });
+    }
 
     const okrOk = await okrExists(req.tenantId!, String(okrId));
     if (!okrOk) {
       return res.status(404).json({ error: "okr_not_found" });
     }
 
+    const aiRequired = (process.env.INSIGHTS_AI_ENABLED || "").toLowerCase() === "true";
+    let validation = await aiValidateKr({ title, metricName, unit, targetValue: Number(targetValue) });
+    if (!validation) {
+      if (aiRequired) {
+        return res.status(502).json({ error: "ai_unavailable" });
+      }
+      validation = ruleValidateKr({ title, targetValue: Number(targetValue) });
+    }
+    const hasHigh = validation.issues?.some((i) => i.severity === "high");
+    if (hasHigh) {
+      return res.status(400).json({ error: "ai_validation_failed", issues: validation.issues });
+    }
+
     const created = await createKr({
       okrId: String(okrId),
       title,
       metricName,
-      targetValue,
+      targetValue: Number(targetValue),
       unit,
     });
 
     await recomputeKrAndOkrInsights(req.tenantId!, created.id);
 
-    res.status(201).json(created);
+    res.status(201).json({ ...created, validation });
   } catch (err) {
     next(err);
   }
