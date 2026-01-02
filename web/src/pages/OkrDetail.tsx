@@ -67,11 +67,47 @@ export default function OkrDetail() {
   const [showKrModal, setShowKrModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
 
+  const krDirty =
+    krForm.title.trim().length > 0 ||
+    krForm.metricName.trim().length > 0 ||
+    krForm.unit.trim().length > 0 ||
+    krForm.targetValue.trim().length > 0;
+  const checkinDirty =
+    checkinForm.krId.trim().length > 0 ||
+    checkinForm.value.trim().length > 0 ||
+    checkinForm.comment.trim().length > 0;
+
+  const formatApiError = (message: string): string => {
+    const raw = message.replace(/^API \d+:\s*/i, "");
+    try {
+      const parsed = JSON.parse(raw);
+      const code = parsed?.error;
+      switch (code) {
+        case "missing_fields":
+          return "Completá todos los campos obligatorios.";
+        case "ai_unavailable":
+          return "La IA no está disponible ahora. Probá en unos minutos.";
+        case "ai_validation_failed":
+          return "Hay issues que bloquean la creación. Revisá las sugerencias.";
+        case "kr_target_missing":
+          return "El targetValue es obligatorio.";
+        case "okr_not_found":
+          return "No se encontró el OKR.";
+        case "kr_not_found":
+          return "No se encontró el KR.";
+        default:
+          return parsed?.message || raw;
+      }
+    } catch {
+      return raw;
+    }
+  };
+
   const load = () => {
     if (!okrId) return;
     apiGet<OkrDetail>(`/okrs/${okrId}`)
       .then(setData)
-      .catch((e) => setErr(e.message));
+      .catch((e) => setErr(formatApiError(e.message)));
   };
 
   useEffect(() => {
@@ -175,7 +211,7 @@ export default function OkrDetail() {
       </div>
 
       {showKrModal && (
-        <Modal title="Agregar KR" onClose={() => setShowKrModal(false)}>
+        <Modal title="Agregar KR" onClose={() => setShowKrModal(false)} dirty={krDirty}>
           {krIssues.length > 0 && (
             <div style={{ marginBottom: 8 }}>
               {krIssues.map((i, idx) => (
@@ -241,7 +277,7 @@ export default function OkrDetail() {
                 setShowKrModal(false);
                 load();
               } catch (e: any) {
-                setErr(e.message);
+                setErr(formatApiError(e.message));
               } finally {
                 setBusy(false);
               }
@@ -253,7 +289,7 @@ export default function OkrDetail() {
       )}
 
       {showCheckinModal && (
-        <Modal title="Registrar check-in" onClose={() => setShowCheckinModal(false)}>
+        <Modal title="Registrar check-in" onClose={() => setShowCheckinModal(false)} dirty={checkinDirty}>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 2fr" }}>
             <select
               value={checkinForm.krId}
@@ -291,7 +327,7 @@ export default function OkrDetail() {
                 setShowCheckinModal(false);
                 load();
               } catch (e: any) {
-                setErr(e.message);
+                setErr(formatApiError(e.message));
               } finally {
                 setBusy(false);
               }

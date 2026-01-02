@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireTenant } from "../middleware/tenantContext";
 import {
   aiDraftOkr,
+  aiFixOkr,
   aiValidateKr,
   aiValidateOkr,
   ruleValidateKr,
@@ -61,15 +62,23 @@ router.get("/status", async (_req, res) => {
 router.use(requireAuth, requireTenant);
 
 router.post("/okr/draft", async (req, res) => {
-  const { objective, fromDate, toDate, context } = req.body ?? {};
+  const { objective, fromDate, toDate, context, existingKrTitles, answers } = req.body ?? {};
   if (!objective || !fromDate || !toDate) {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  const ai = await aiDraftOkr({ objective, fromDate, toDate, context });
+  const ai = await aiDraftOkr({
+    objective,
+    fromDate,
+    toDate,
+    context,
+    existingKrTitles: Array.isArray(existingKrTitles) ? existingKrTitles : [],
+    answers: Array.isArray(answers) ? answers : [],
+  });
   if (!ai) {
     return res.json({
       objectiveRefined: null,
+      questions: [],
       suggestedKrs: [],
       warnings: ["ai_unavailable"],
     });
@@ -98,6 +107,19 @@ router.post("/okr/validate", async (req, res) => {
   }
 
   res.json({ ...ai, source: "ai" });
+});
+
+router.post("/okr/fix", async (req, res) => {
+  const { objective, fromDate, toDate, krs, issues } = req.body ?? {};
+  if (!objective || !fromDate || !toDate || !Array.isArray(krs) || !Array.isArray(issues)) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+
+  const ai = await aiFixOkr({ objective, fromDate, toDate, krs, issues });
+  if (!ai) {
+    return res.status(502).json({ error: "ai_unavailable" });
+  }
+  res.json(ai);
 });
 
 router.post("/kr/validate", async (req, res) => {

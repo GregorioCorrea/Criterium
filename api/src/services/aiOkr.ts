@@ -2,6 +2,7 @@ import { getAiClient, getAiDeployment, safeParseJson, withRetry } from "./aiClie
 
 export type AiDraftOkrOutput = {
   objectiveRefined: string | null;
+  questions: string[];
   suggestedKrs: Array<{
     title: string;
     metricName: string | null;
@@ -57,6 +58,8 @@ export async function aiDraftOkr(input: {
   fromDate: string;
   toDate: string;
   context?: string;
+  existingKrTitles?: string[];
+  answers?: string[];
 }): Promise<AiDraftOkrOutput | null> {
   const ai = getAiClient();
   if (!ai) return null;
@@ -65,6 +68,7 @@ export async function aiDraftOkr(input: {
 Eres un asistente de OKRs. Devuelve SOLO un JSON valido con:
 {
   "objectiveRefined": string | null,
+  "questions": [string, string, string],
   "suggestedKrs": [
     { "title": string, "metricName": string|null, "unit": string|null, "targetValue": number }
   ],
@@ -74,6 +78,7 @@ Reglas:
 - suggestedKrs debe tener 2 a 4 elementos.
 - targetValue debe ser numerico y > 0.
 - explanationShort debe ser <= 280 chars (si aparece).
+- No repetir KRs ya existentes (si se proveen).
 
 Input:
 ${JSON.stringify(input)}
@@ -104,9 +109,67 @@ ${JSON.stringify(input)}
 
     return {
       objectiveRefined: parsed.objectiveRefined ? String(parsed.objectiveRefined) : null,
+      questions: Array.isArray(parsed.questions)
+        ? parsed.questions.map((q) => String(q)).slice(0, 3)
+        : [],
       suggestedKrs,
       warnings: parsed.warnings?.map((w) => String(w)) ?? [],
     };
+  } catch {
+    return null;
+  }
+}
+
+export async function aiFixOkr(input: {
+  objective: string;
+  fromDate: string;
+  toDate: string;
+  krs: Array<{ title: string; metricName?: string | null; unit?: string | null; targetValue: number }>;
+  issues: AiIssue[];
+}): Promise<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] } | null> {
+  const ai = getAiClient();
+  if (!ai) return null;
+
+  const prompt = `
+Eres un asistente que corrige KRs. Devuelve SOLO un JSON valido con:
+{
+  "correctedKrs": [
+    { "title": string, "metricName": string|null, "unit": string|null, "targetValue": number }
+  ],
+  "notes": string[]
+}
+Reglas:
+- Cada KR debe ser numerico con targetValue > 0.
+- Corrige issues high sin perder el objetivo original.
+
+Input:
+${JSON.stringify(input)}
+`;
+
+  try {
+    const result = await withRetry(
+      () =>
+        ai.chat.completions.create({
+          model: AI_DEPLOYMENT ?? "",
+          messages: [{ role: "developer", content: prompt }],
+          max_completion_tokens: 700,
+        }),
+      1
+    );
+    const content = result.choices[0]?.message?.content ?? "";
+    const parsed = safeParseJson<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] }>(
+      content
+    );
+    if (!parsed || !Array.isArray(parsed.correctedKrs)) return null;
+    const correctedKrs = parsed.correctedKrs
+      .map((kr) => ({
+        title: String(kr.title ?? "").trim(),
+        metricName: kr.metricName ? String(kr.metricName) : null,
+        unit: kr.unit ? String(kr.unit) : null,
+        targetValue: Number(kr.targetValue),
+      }))
+      .filter((kr) => kr.title && Number.isFinite(kr.targetValue) && kr.targetValue > 0);
+    return { correctedKrs, notes: parsed.notes?.map((n) => String(n)) ?? [] };
   } catch {
     return null;
   }
