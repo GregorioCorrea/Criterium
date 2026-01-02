@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { apiGet } from "../api";
 import { Link, useNavigate } from "react-router-dom";
 import AiStatus from "../components/AiStatus";
-import { useState } from "react";
 import NewOkrModal from "../components/NewOkrModal";
 
 type OkrBoard = {
