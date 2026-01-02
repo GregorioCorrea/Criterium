@@ -97,12 +97,15 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         existingKrTitles: krs.map((k) => k.title).filter(Boolean),
         answers,
       });
-      if (res.warnings?.includes("ai_unavailable") || res.suggestedKrs.length === 0) {
-        setErr("La IA no pudo generar KRs. Probá nuevamente en unos minutos.");
-        setDraft(res);
-        setQuestions(res.questions ?? []);
-        return;
+      const noSuggestions = res.suggestedKrs.length === 0;
+      if (res.warnings?.includes("ai_unavailable")) {
+        setErr("La IA no está disponible ahora. Probá nuevamente en unos minutos.");
       }
+      if (noSuggestions && !res.questions?.length) {
+        setErr("La IA no generó KRs. Podés agregarlos manualmente o volver a intentar.");
+      }
+      setDraft(res);
+      setQuestions(res.questions ?? []);
       setDraft(res);
       setQuestions(res.questions ?? []);
       const incoming = res.suggestedKrs.map((kr) => ({
@@ -179,6 +182,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
   const hasHigh = issues.some((i) => i.severity === "high");
   const canProposeMore = proposalCount < 3;
   const hasKrs = krs.length > 0;
+  const hasQuestionGaps = questions.some((_, idx) => !answers[idx]?.trim());
 
   return (
     <Modal title="Nuevo OKR" onClose={onClose} dirty={dirty}>
@@ -340,7 +344,16 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setStep(1)}>Volver</button>
             {canProposeMore && (
-              <button disabled={busy} onClick={handleDraft}>
+              <button
+                disabled={busy || (questions.length > 0 && hasQuestionGaps)}
+                onClick={() => {
+                  if (questions.length > 0 && hasQuestionGaps) {
+                    setErr("Respondé las preguntas para continuar con la propuesta.");
+                    return;
+                  }
+                  handleDraft();
+                }}
+              >
                 {busy ? "Analizando..." : hasKrs ? "Proponer otros KR" : "Proponer KR"}
               </button>
             )}
