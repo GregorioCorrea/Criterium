@@ -79,9 +79,6 @@ Reglas:
 - targetValue debe ser numerico y > 0.
 - explanationShort debe ser <= 280 chars (si aparece).
 - No repetir KRs ya existentes (si se proveen).
-
-Input:
-${JSON.stringify(input)}
 `;
 
   try {
@@ -89,8 +86,11 @@ ${JSON.stringify(input)}
       () =>
         ai.chat.completions.create({
           model: AI_DEPLOYMENT ?? "",
-          messages: [{ role: "developer", content: prompt }],
-          max_completion_tokens: 700,
+          messages: [
+            { role: "developer", content: prompt },
+            { role: "user", content: JSON.stringify(input) },
+          ],
+          max_completion_tokens: 900,
         }),
       1
     );
@@ -152,9 +152,6 @@ Eres un asistente que corrige KRs. Devuelve SOLO un JSON valido con:
 Reglas:
 - Cada KR debe ser numerico con targetValue > 0.
 - Corrige issues high sin perder el objetivo original.
-
-Input:
-${JSON.stringify(input)}
 `;
 
   try {
@@ -162,7 +159,10 @@ ${JSON.stringify(input)}
       () =>
         ai.chat.completions.create({
           model: AI_DEPLOYMENT ?? "",
-          messages: [{ role: "developer", content: prompt }],
+          messages: [
+            { role: "developer", content: prompt },
+            { role: "user", content: JSON.stringify(input) },
+          ],
           max_completion_tokens: 700,
         }),
       1
@@ -205,9 +205,6 @@ Eres un validador de OKRs. Devuelve SOLO un JSON valido con:
 }
 Detecta: objetivos vagos, fechas incoherentes, KRs no medibles, target faltante, demasiados KRs.
 Si no hay issues, devuelve issues: [].
-
-Input:
-${JSON.stringify(input)}
 `;
 
   try {
@@ -215,7 +212,10 @@ ${JSON.stringify(input)}
       () =>
         ai.chat.completions.create({
           model: AI_DEPLOYMENT ?? "",
-          messages: [{ role: "developer", content: prompt }],
+          messages: [
+            { role: "developer", content: prompt },
+            { role: "user", content: JSON.stringify(input) },
+          ],
           max_completion_tokens: 700,
         }),
       1
@@ -251,9 +251,6 @@ Eres un validador de KRs numericos. Devuelve SOLO un JSON valido con:
 }
 Reglas: KR debe ser medible, cuantitativo y targetValue > 0.
 Si no hay issues, issues: [].
-
-Input:
-${JSON.stringify(input)}
 `;
 
   try {
@@ -261,7 +258,10 @@ ${JSON.stringify(input)}
       () =>
         ai.chat.completions.create({
           model: AI_DEPLOYMENT ?? "",
-          messages: [{ role: "developer", content: prompt }],
+          messages: [
+            { role: "developer", content: prompt },
+            { role: "user", content: JSON.stringify(input) },
+          ],
           max_completion_tokens: 500,
         }),
       1
