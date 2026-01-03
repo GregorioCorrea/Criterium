@@ -94,7 +94,30 @@ Reglas:
         }),
       1
     );
-    const content = result.choices[0]?.message?.content ?? "";
+    let content = result.choices[0]?.message?.content ?? "";
+    if (!content) {
+      console.warn("[ai] draft okr empty content", {
+        finishReason: result.choices[0]?.finish_reason,
+      });
+      try {
+        const retry = await ai.chat.completions.create({
+          model: AI_DEPLOYMENT ?? "",
+          messages: [
+            { role: "developer", content: prompt },
+            { role: "user", content: JSON.stringify(input) },
+          ],
+          max_completion_tokens: 900,
+          response_format: { type: "json_object" },
+        });
+        content = retry.choices[0]?.message?.content ?? "";
+      } catch (err: any) {
+        console.warn("[ai] draft okr retry failed", {
+          message: err?.message,
+          status: err?.status,
+          code: err?.code,
+        });
+      }
+    }
     const parsed = safeParseJson<AiDraftOkrOutput>(content);
     if (!parsed || !Array.isArray(parsed.suggestedKrs)) {
       console.warn("[ai] draft okr parse failed", {
