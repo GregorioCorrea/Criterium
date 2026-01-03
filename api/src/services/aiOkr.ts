@@ -96,7 +96,13 @@ ${JSON.stringify(input)}
     );
     const content = result.choices[0]?.message?.content ?? "";
     const parsed = safeParseJson<AiDraftOkrOutput>(content);
-    if (!parsed || !Array.isArray(parsed.suggestedKrs)) return null;
+    if (!parsed || !Array.isArray(parsed.suggestedKrs)) {
+      console.warn("[ai] draft okr parse failed", {
+        length: content.length,
+        preview: content.slice(0, 200),
+      });
+      return null;
+    }
 
     const suggestedKrs = parsed.suggestedKrs
       .map((kr) => ({

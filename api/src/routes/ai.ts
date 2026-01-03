@@ -67,6 +67,13 @@ router.post("/okr/draft", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
 
+  console.log("[ai] draft okr request", {
+    objectiveLen: String(objective).length,
+    contextLen: context ? String(context).length : 0,
+    existingKrCount: Array.isArray(existingKrTitles) ? existingKrTitles.length : 0,
+    answersCount: Array.isArray(answers) ? answers.filter((a) => String(a || "").trim()).length : 0,
+  });
+
   const ai = await aiDraftOkr({
     objective,
     fromDate,
@@ -83,6 +90,11 @@ router.post("/okr/draft", async (req, res) => {
       warnings: ["ai_unavailable"],
     });
   }
+  console.log("[ai] draft okr response", {
+    questions: ai.questions?.length ?? 0,
+    krs: ai.suggestedKrs?.length ?? 0,
+    warnings: ai.warnings ?? [],
+  });
   res.json(ai);
 });
 
