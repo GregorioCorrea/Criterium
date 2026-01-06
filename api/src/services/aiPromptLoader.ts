@@ -45,8 +45,11 @@ export function loadAiPromptConfig(): AiPromptConfig {
     const content = tryRead(p);
     if (content) {
       try {
-        configCache = JSON.parse(content);
-        return configCache;
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === "object") {
+          configCache = parsed as AiPromptConfig;
+          return configCache;
+        }
       } catch {
         break;
       }
