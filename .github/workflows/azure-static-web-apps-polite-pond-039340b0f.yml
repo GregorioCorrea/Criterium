@@ -44,7 +44,7 @@ jobs:
           app_location: "./web" # App source code path
           api_location: "api" # Api source code path - optional
           skip_app_build: true
-          app_artifact_location: "web/dist"
+          app_artifact_location: "dist"
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
