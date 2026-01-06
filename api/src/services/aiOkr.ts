@@ -1,5 +1,4 @@
-import { safeParseJson } from "./aiClient";
-import { callResponsesApi } from "./aiResponses";
+import { getAiClient, getAiDeployment, safeParseJson, withRetry } from "./aiClient";
 import { loadAiPromptConfig, loadPrompt } from "./aiPromptLoader";
 
 export type AiDraftOkrOutput = {
@@ -32,6 +31,7 @@ export type AiValidateKrOutput = {
 };
 
 const promptConfig = loadAiPromptConfig();
+const AI_DEPLOYMENT = getAiDeployment();
 
 function normalizeSeverity(value: string | undefined | null): "high" | "medium" | "low" | null {
   if (!value) return null;
@@ -55,6 +55,32 @@ function normalizeIssues(issues: any[]): AiIssue[] {
     }));
 }
 
+async function runChatJson(prompt: string, input: unknown, maxTokens: number) {
+  const ai = getAiClient();
+  if (!ai || !AI_DEPLOYMENT) return null;
+  const result = await withRetry(
+    () =>
+      ai.chat.completions.create({
+        model: AI_DEPLOYMENT,
+        messages: [
+          { role: "developer", content: prompt },
+          { role: "user", content: JSON.stringify(input) },
+        ],
+        max_completion_tokens: maxTokens,
+        response_format: { type: "json_object" },
+      }),
+    1
+  );
+  const content = result.choices[0]?.message?.content ?? "";
+  if (!content) {
+    console.warn("[ai] chat empty content", {
+      finishReason: result.choices[0]?.finish_reason,
+      usage: result.usage,
+    });
+  }
+  return content;
+}
+
 export async function aiDraftOkr(input: {
   objective: string;
   fromDate: string;
@@ -67,19 +93,17 @@ export async function aiDraftOkr(input: {
   if (!prompt) return null;
 
   try {
-    const result = await callResponsesApi({
-      system: prompt,
-      user: JSON.stringify(input),
-      maxOutputTokens: promptConfig.max_output_tokens?.okr_draft ?? 1200,
-      responseFormat: { type: "json_object" },
-      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
-    });
-    if (!result?.text) return null;
-    const parsed = safeParseJson<AiDraftOkrOutput>(result.text);
+    const content = await runChatJson(
+      prompt,
+      input,
+      promptConfig.max_output_tokens?.okr_draft ?? 900
+    );
+    if (!content) return null;
+    const parsed = safeParseJson<AiDraftOkrOutput>(content);
     if (!parsed || !Array.isArray(parsed.suggestedKrs)) {
       console.warn("[ai] draft okr parse failed", {
-        length: result.text.length,
-        preview: result.text.slice(0, 200),
+        length: content.length,
+        preview: content.slice(0, 200),
       });
       return null;
     }
@@ -120,16 +144,14 @@ export async function aiFixOkr(input: {
   if (!prompt) return null;
 
   try {
-    const result = await callResponsesApi({
-      system: prompt,
-      user: JSON.stringify(input),
-      maxOutputTokens: promptConfig.max_output_tokens?.okr_fix ?? 700,
-      responseFormat: { type: "json_object" },
-      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
-    });
-    if (!result?.text) return null;
+    const content = await runChatJson(
+      prompt,
+      input,
+      promptConfig.max_output_tokens?.okr_fix ?? 700
+    );
+    if (!content) return null;
     const parsed = safeParseJson<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] }>(
-      result.text
+      content
     );
     if (!parsed || !Array.isArray(parsed.correctedKrs)) return null;
     const correctedKrs = parsed.correctedKrs
@@ -156,15 +178,13 @@ export async function aiValidateOkr(input: {
   if (!prompt) return null;
 
   try {
-    const result = await callResponsesApi({
-      system: prompt,
-      user: JSON.stringify(input),
-      maxOutputTokens: promptConfig.max_output_tokens?.okr_validate ?? 700,
-      responseFormat: { type: "json_object" },
-      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
-    });
-    if (!result?.text) return null;
-    const parsed = safeParseJson<AiValidateOkrOutput>(result.text);
+    const content = await runChatJson(
+      prompt,
+      input,
+      promptConfig.max_output_tokens?.okr_validate ?? 700
+    );
+    if (!content) return null;
+    const parsed = safeParseJson<AiValidateOkrOutput>(content);
     if (!parsed || !Array.isArray(parsed.issues)) return null;
     return {
       issues: normalizeIssues(parsed.issues),
@@ -185,15 +205,13 @@ export async function aiValidateKr(input: {
   if (!prompt) return null;
 
   try {
-    const result = await callResponsesApi({
-      system: prompt,
-      user: JSON.stringify(input),
-      maxOutputTokens: promptConfig.max_output_tokens?.kr_validate ?? 500,
-      responseFormat: { type: "json_object" },
-      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
-    });
-    if (!result?.text) return null;
-    const parsed = safeParseJson<AiValidateKrOutput>(result.text);
+    const content = await runChatJson(
+      prompt,
+      input,
+      promptConfig.max_output_tokens?.kr_validate ?? 500
+    );
+    if (!content) return null;
+    const parsed = safeParseJson<AiValidateKrOutput>(content);
     if (!parsed || !Array.isArray(parsed.issues)) return null;
     return {
       issues: normalizeIssues(parsed.issues),
