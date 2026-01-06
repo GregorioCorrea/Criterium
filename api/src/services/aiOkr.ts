@@ -65,7 +65,7 @@ export async function aiDraftOkr(input: {
   if (!ai) return null;
 
   const prompt = `
-Eres un asistente de OKRs. Devuelve SOLO un JSON valido con:
+Devuelve SOLO JSON valido con:
 {
   "objectiveRefined": string | null,
   "questions": [string, string, string],
@@ -75,10 +75,9 @@ Eres un asistente de OKRs. Devuelve SOLO un JSON valido con:
   "warnings": string[]
 }
 Reglas:
-- suggestedKrs debe tener 2 a 4 elementos.
-- targetValue debe ser numerico y > 0.
-- explanationShort debe ser <= 280 chars (si aparece).
-- No repetir KRs ya existentes (si se proveen).
+- 3 preguntas inteligentes.
+- 3 KRs numericos, targetValue > 0.
+- No repetir KRs existentes.
 `;
 
   try {
@@ -90,7 +89,7 @@ Reglas:
             { role: "developer", content: prompt },
             { role: "user", content: JSON.stringify(input) },
           ],
-          max_completion_tokens: 900,
+          max_completion_tokens: 2048,
         }),
       1
     );
@@ -98,6 +97,7 @@ Reglas:
     if (!content) {
       console.warn("[ai] draft okr empty content", {
         finishReason: result.choices[0]?.finish_reason,
+        usage: result.usage,
       });
       try {
         const retry = await ai.chat.completions.create({
@@ -106,7 +106,7 @@ Reglas:
             { role: "developer", content: prompt },
             { role: "user", content: JSON.stringify(input) },
           ],
-          max_completion_tokens: 900,
+          max_completion_tokens: 2048,
           response_format: { type: "json_object" },
         });
         content = retry.choices[0]?.message?.content ?? "";
