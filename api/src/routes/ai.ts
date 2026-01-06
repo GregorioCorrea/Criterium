@@ -74,7 +74,10 @@ router.post("/okr/draft", async (req, res) => {
     answersCount: Array.isArray(answers) ? answers.filter((a) => String(a || "").trim()).length : 0,
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const ai = await aiDraftOkr({
+    today,
     objective,
     fromDate,
     toDate,
@@ -104,7 +107,9 @@ router.post("/okr/validate", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  const ai = await aiValidateOkr({ objective, fromDate, toDate, krs });
+  const today = new Date().toISOString().slice(0, 10);
+
+  const ai = await aiValidateOkr({ today, objective, fromDate, toDate, krs });
   if (!ai) {
     const rules = ruleValidateOkr({
       objective,
@@ -127,7 +132,9 @@ router.post("/okr/fix", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  const ai = await aiFixOkr({ objective, fromDate, toDate, krs, issues });
+  const today = new Date().toISOString().slice(0, 10);
+
+  const ai = await aiFixOkr({ today, objective, fromDate, toDate, krs, issues });
   if (!ai) {
     return res.status(502).json({ error: "ai_unavailable" });
   }

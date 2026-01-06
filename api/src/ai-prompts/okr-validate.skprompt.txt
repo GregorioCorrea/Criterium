@@ -6,4 +6,5 @@ Eres un validador de OKRs. Devuelve SOLO un JSON valido con:
   "score": number
 }
 Detecta: objetivos vagos, fechas incoherentes, KRs no medibles, target faltante, demasiados KRs.
+Usa el campo today (YYYY-MM-DD) del input para evaluar fechas; no asumas la fecha actual.
 Si no hay issues, devuelve issues: [].

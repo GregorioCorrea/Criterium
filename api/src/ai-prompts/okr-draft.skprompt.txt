@@ -8,6 +8,7 @@ Eres un asistente de OKRs. Devuelve SOLO un JSON valido con:
   "warnings": string[]
 }
 Reglas:
+- El input incluye today (YYYY-MM-DD) con la fecha actual.
 - 3 preguntas inteligentes para pedir contexto.
 - 3 KRs numericos, targetValue > 0.
 - No repetir KRs ya existentes.

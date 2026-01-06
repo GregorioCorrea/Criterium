@@ -47,13 +47,13 @@ function formatApiError(message: string): string {
     const code = parsed?.error;
     switch (code) {
       case "missing_fields":
-        return "Completá todos los campos obligatorios.";
+        return "Completa todos los campos obligatorios.";
       case "ai_unavailable":
-        return "La IA no está disponible ahora. Probá en unos minutos.";
+        return "La IA no esta disponible ahora. Proba en unos minutos.";
       case "ai_validation_failed":
-        return "Hay issues que bloquean la creación. Revisá las sugerencias.";
+        return "Hay issues que bloquean la creacion. Revisa las sugerencias.";
       case "kr_target_missing":
-        return "Cada KR necesita un target numérico.";
+        return "Cada KR necesita un target numerico.";
       default:
         return parsed?.message || raw;
     }
@@ -77,6 +77,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
+  const [fixingIssue, setFixingIssue] = useState<string | null>(null);
 
   const dirty =
     objective.trim().length > 0 ||
@@ -85,27 +86,40 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     context.trim().length > 0 ||
     krs.some((k) => k.title || k.metricName || k.unit || k.targetValue);
 
+  const canProposeMore = proposalCount < 3;
+  const hasKrs = krs.length > 0;
+  const hasHigh = issues.some((i) => i.severity === "high");
+  const hasQuestionGaps = questions.some((_, idx) => !answers[idx]?.trim());
+
+  const draftPayload = () => ({
+    objective,
+    fromDate,
+    toDate,
+    context,
+    existingKrTitles: krs.map((k) => k.title).filter(Boolean),
+    answers,
+  });
+
+  const krPayload = () =>
+    krs.map((kr) => ({
+      title: kr.title,
+      metricName: kr.metricName || null,
+      unit: kr.unit || null,
+      targetValue: Number(kr.targetValue),
+    }));
+
   const handleDraft = async () => {
     setErr(null);
     setBusy(true);
     try {
-      const res = await apiPost<DraftResponse>("/ai/okr/draft", {
-        objective,
-        fromDate,
-        toDate,
-        context,
-        existingKrTitles: krs.map((k) => k.title).filter(Boolean),
-        answers,
-      });
+      const res = await apiPost<DraftResponse>("/ai/okr/draft", draftPayload());
       const noSuggestions = res.suggestedKrs.length === 0;
       if (res.warnings?.includes("ai_unavailable")) {
-        setErr("La IA no está disponible ahora. Probá nuevamente en unos minutos.");
+        setErr("La IA no esta disponible ahora. Proba nuevamente en unos minutos.");
       }
       if (noSuggestions && !res.questions?.length) {
-        setErr("La IA no generó KRs. Podés agregarlos manualmente o volver a intentar.");
+        setErr("La IA no genero KRs. Podes agregarlos manualmente o volver a intentar.");
       }
-      setDraft(res);
-      setQuestions(res.questions ?? []);
       setDraft(res);
       setQuestions(res.questions ?? []);
       const incoming = res.suggestedKrs.map((kr) => ({
@@ -123,6 +137,13 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
       if (res.suggestedKrs.length > 0) {
         setProposalCount((c) => Math.min(c + 1, 3));
       }
+      if (res.questions?.length) {
+        setAnswers((prev) => {
+          const next = [...prev];
+          while (next.length < res.questions.length) next.push("");
+          return next.slice(0, res.questions.length);
+        });
+      }
       setStep(2);
     } catch (e: any) {
       setErr(formatApiError(e.message));
@@ -139,12 +160,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         objective,
         fromDate,
         toDate,
-        krs: krs.map((kr) => ({
-          title: kr.title,
-          metricName: kr.metricName || null,
-          unit: kr.unit || null,
-          targetValue: Number(kr.targetValue),
-        })),
+        krs: krPayload(),
       });
       setIssues(res.issues || []);
       setNotes([]);
@@ -164,12 +180,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         objective,
         fromDate,
         toDate,
-        krs: krs.map((kr) => ({
-          title: kr.title,
-          metricName: kr.metricName || null,
-          unit: kr.unit || null,
-          targetValue: Number(kr.targetValue),
-        })),
+        krs: krPayload(),
       });
       onCreated(res.okr.id);
     } catch (e: any) {
@@ -179,10 +190,74 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     }
   };
 
-  const hasHigh = issues.some((i) => i.severity === "high");
-  const canProposeMore = proposalCount < 3;
-  const hasKrs = krs.length > 0;
-  const hasQuestionGaps = questions.some((_, idx) => !answers[idx]?.trim());
+  const handleFixIssues = async (selectedIssues: Issue[], returnToStep2: boolean) => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const fix = await apiPost<{ correctedKrs: DraftResponse["suggestedKrs"]; notes?: string[] }>(
+        "/ai/okr/fix",
+        {
+          objective,
+          fromDate,
+          toDate,
+          krs: krPayload(),
+          issues: selectedIssues,
+        }
+      );
+      if (fix.correctedKrs?.length) {
+        setKrs(
+          fix.correctedKrs.map((kr) => ({
+            title: kr.title,
+            metricName: kr.metricName ?? "",
+            unit: kr.unit ?? "",
+            targetValue: String(kr.targetValue ?? ""),
+          }))
+        );
+        setNotes(fix.notes ?? []);
+        if (returnToStep2) {
+          setStep(2);
+        }
+      } else {
+        setErr("No pude corregir automaticamente. Ajusta manualmente y valida de nuevo.");
+      }
+    } catch (e: any) {
+      setErr(formatApiError(e.message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const renderOkrFields = (showContext: boolean) => (
+    <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
+      <div style={{ display: "grid", gap: 8 }}>
+        <label>
+          Objetivo
+          <textarea
+            value={objective}
+            onChange={(e) => setObjective(e.target.value)}
+            rows={2}
+            style={{ width: "100%" }}
+          />
+        </label>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <label>
+            Desde
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          </label>
+          <label>
+            Hasta
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          </label>
+        </div>
+        {showContext && (
+          <label>
+            Contexto (opcional)
+            <input value={context} onChange={(e) => setContext(e.target.value)} />
+          </label>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <Modal title="Nuevo OKR" onClose={onClose} dirty={dirty}>
@@ -195,29 +270,9 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
       {step === 1 && (
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
-            La IA va a sugerir KRs y validar que sean medibles. Luego podés editar.
+            La IA va a sugerir KRs y validar que sean medibles. Luego podes editar.
           </div>
-          <label>
-            Objetivo
-            <textarea
-              value={objective}
-              onChange={(e) => setObjective(e.target.value)}
-              rows={3}
-              style={{ width: "100%" }}
-            />
-          </label>
-          <label>
-            Desde
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </label>
-          <label>
-            Hasta
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </label>
-          <label>
-            Contexto (opcional)
-            <input value={context} onChange={(e) => setContext(e.target.value)} />
-          </label>
+          {renderOkrFields(true)}
           <button disabled={busy} onClick={handleDraft}>
             {busy ? "Analizando..." : "Continuar y sugerir KRs"}
           </button>
@@ -226,14 +281,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
       {step === 2 && (
         <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
-            <div>
-              <b>Objetivo:</b> {objective || "-"}
-            </div>
-            <div>
-              <b>Fechas:</b> {fromDate || "-"} → {toDate || "-"}
-            </div>
-          </div>
+          {renderOkrFields(true)}
           {draft?.objectiveRefined && (
             <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
               <b>Sugerencia de objetivo:</b> {draft.objectiveRefined}{" "}
@@ -251,7 +299,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
             <div style={{ color: "#a6adbb" }}>
               {draft.warnings
                 .map((w) => (w === "ai_unavailable" ? "IA no disponible" : w))
-                .join(" • ")}
+                .join(" - ")}
             </div>
           ) : null}
           {questions.length > 0 && (
@@ -327,7 +375,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
                     setKrs(next);
                   }}
                 >
-                  🗑
+                  Eliminar
                 </button>
               </div>
             </div>
@@ -348,7 +396,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
                 disabled={busy || (questions.length > 0 && hasQuestionGaps)}
                 onClick={() => {
                   if (questions.length > 0 && hasQuestionGaps) {
-                    setErr("Respondé las preguntas para continuar con la propuesta.");
+                    setErr("Responde las preguntas para continuar con la propuesta.");
                     return;
                   }
                   handleDraft();
@@ -366,73 +414,69 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
       {step === 3 && (
         <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
-            <div>
-              <b>Objetivo:</b> {objective || "-"}
-            </div>
-            <div>
-              <b>Fechas:</b> {fromDate || "-"} → {toDate || "-"}
-            </div>
-          </div>
+          {renderOkrFields(false)}
           <h3>Validacion</h3>
           {issues.length === 0 && <div>Sin issues.</div>}
           {issues.map((i, idx) => (
             <div key={idx} style={{ border: "1px solid #2a3440", padding: 8, borderRadius: 8 }}>
-              <b>{i.severity.toUpperCase()}</b> - {i.message}
-              {i.fixSuggestion && <div>Recomendacion: {i.fixSuggestion}</div>}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <b>{i.severity.toUpperCase()}</b> - {i.message}
+                  {i.fixSuggestion && <div>Recomendacion: {i.fixSuggestion}</div>}
+                </div>
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setFixingIssue(i.code || "issue");
+                    setErr(null);
+                    try {
+                      await handleFixIssues([i], false);
+                    } finally {
+                      setFixingIssue(null);
+                    }
+                  }}
+                >
+                  {fixingIssue === i.code ? "Corrigiendo..." : "Corregir"}
+                </button>
+              </div>
             </div>
           ))}
           {notes.length > 0 && (
-            <div style={{ color: "#a6adbb" }}>{notes.join(" • ")}</div>
+            <div style={{ color: "#a6adbb" }}>{notes.join(" - ")}</div>
           )}
-          {hasHigh && <div style={{ color: "#f5b4b4" }}>Corregí los issues high para continuar.</div>}
+          {hasHigh && (
+            <div style={{ color: "#f5b4b4" }}>
+              Hay issues high. Podes corregirlos o continuar igual.
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setStep(2)}>Volver</button>
             {hasHigh && (
               <button
                 disabled={busy}
-                onClick={async () => {
-                  setErr(null);
-                  setBusy(true);
-                  try {
-                    const fix = await apiPost<{ correctedKrs: DraftResponse["suggestedKrs"]; notes?: string[] }>(
-                      "/ai/okr/fix",
-                      {
-                        objective,
-                        fromDate,
-                        toDate,
-                        krs: krs.map((kr) => ({
-                          title: kr.title,
-                          metricName: kr.metricName || null,
-                          unit: kr.unit || null,
-                          targetValue: Number(kr.targetValue),
-                        })),
-                        issues,
-                      }
-                    );
-                    if (fix.correctedKrs?.length) {
-                      setKrs(
-                        fix.correctedKrs.map((kr) => ({
-                          title: kr.title,
-                          metricName: kr.metricName ?? "",
-                          unit: kr.unit ?? "",
-                          targetValue: String(kr.targetValue ?? ""),
-                        }))
-                      );
-                      setNotes(fix.notes ?? []);
-                      setStep(2);
-                    }
-                  } catch (e: any) {
-                    setErr(formatApiError(e.message));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
+                onClick={() =>
+                  handleFixIssues(
+                    issues.filter((i) => i.severity === "high"),
+                    true
+                  )
+                }
               >
-                Corregir issues high
+                Corregir KRs (IA)
               </button>
             )}
-            <button disabled={busy || hasHigh} onClick={handleCreate}>
+            <button disabled={busy} onClick={handleValidate}>
+              {busy ? "Validando..." : "Revalidar"}
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => {
+                if (hasHigh) {
+                  const ok = window.confirm("Hay issues HIGH. Queres crear el OKR igual?");
+                  if (!ok) return;
+                }
+                handleCreate();
+              }}
+            >
               {busy ? "Creando..." : "Crear OKR"}
             </button>
           </div>

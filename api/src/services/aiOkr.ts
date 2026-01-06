@@ -133,6 +133,7 @@ async function runChatJson(
 }
 
 export async function aiDraftOkr(input: {
+  today?: string;
   objective: string;
   fromDate: string;
   toDate: string;
@@ -187,6 +188,7 @@ export async function aiDraftOkr(input: {
 }
 
 export async function aiFixOkr(input: {
+  today?: string;
   objective: string;
   fromDate: string;
   toDate: string;
@@ -224,6 +226,7 @@ export async function aiFixOkr(input: {
 }
 
 export async function aiValidateOkr(input: {
+  today?: string;
   objective: string;
   fromDate: string;
   toDate: string;
