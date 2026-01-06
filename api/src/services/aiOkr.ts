@@ -106,7 +106,8 @@ async function runChatJson(
       max_completion_tokens: maxTokens,
       response_format: { type: "json_object" },
     };
-    if (reasoningEffort) {
+    const supportsReasoning = AI_DEPLOYMENT.toLowerCase().startsWith("gpt-5");
+    if (reasoningEffort && supportsReasoning) {
       payload.reasoning = { effort: reasoningEffort };
     }
     return ai.chat.completions.create(payload);
