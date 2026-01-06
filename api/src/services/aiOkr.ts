@@ -194,7 +194,13 @@ export async function aiFixOkr(input: {
   toDate: string;
   krs: Array<{ title: string; metricName?: string | null; unit?: string | null; targetValue: number }>;
   issues: AiIssue[];
-}): Promise<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] } | null> {
+}): Promise<{
+  correctedKrs: AiDraftOkrOutput["suggestedKrs"];
+  notes?: string[];
+  objectiveRefined?: string | null;
+  fromDate?: string | null;
+  toDate?: string | null;
+} | null> {
   const prompt = loadPrompt("okr-fix.skprompt.txt");
   if (!prompt) return null;
 
@@ -207,9 +213,13 @@ export async function aiFixOkr(input: {
       promptConfig.reasoning?.effort
     );
     if (!content) return null;
-    const parsed = safeParseJson<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] }>(
-      content
-    );
+    const parsed = safeParseJson<{
+      correctedKrs: AiDraftOkrOutput["suggestedKrs"];
+      notes?: string[];
+      objectiveRefined?: string | null;
+      fromDate?: string | null;
+      toDate?: string | null;
+    }>(content);
     if (!parsed || !Array.isArray(parsed.correctedKrs)) return null;
     const correctedKrs = parsed.correctedKrs
       .map((kr) => ({
@@ -219,7 +229,13 @@ export async function aiFixOkr(input: {
         targetValue: Number(kr.targetValue),
       }))
       .filter((kr) => kr.title && Number.isFinite(kr.targetValue) && kr.targetValue > 0);
-    return { correctedKrs, notes: parsed.notes?.map((n) => String(n)) ?? [] };
+    return {
+      correctedKrs,
+      notes: parsed.notes?.map((n) => String(n)) ?? [],
+      objectiveRefined: parsed.objectiveRefined ? String(parsed.objectiveRefined) : null,
+      fromDate: parsed.fromDate ? String(parsed.fromDate) : null,
+      toDate: parsed.toDate ? String(parsed.toDate) : null,
+    };
   } catch {
     return null;
   }

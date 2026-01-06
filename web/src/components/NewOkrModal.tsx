@@ -194,7 +194,13 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     setErr(null);
     setBusy(true);
     try {
-      const fix = await apiPost<{ correctedKrs: DraftResponse["suggestedKrs"]; notes?: string[] }>(
+      const fix = await apiPost<{
+        correctedKrs: DraftResponse["suggestedKrs"];
+        notes?: string[];
+        objectiveRefined?: string | null;
+        fromDate?: string | null;
+        toDate?: string | null;
+      }>(
         "/ai/okr/fix",
         {
           objective,
@@ -204,6 +210,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
           issues: selectedIssues,
         }
       );
+      let applied = false;
       if (fix.correctedKrs?.length) {
         setKrs(
           fix.correctedKrs.map((kr) => ({
@@ -213,11 +220,27 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
             targetValue: String(kr.targetValue ?? ""),
           }))
         );
-        setNotes(fix.notes ?? []);
-        if (returnToStep2) {
-          setStep(2);
-        }
-      } else {
+        applied = true;
+      }
+      if (fix.objectiveRefined) {
+        setObjective(fix.objectiveRefined);
+        applied = true;
+      }
+      if (fix.fromDate) {
+        setFromDate(fix.fromDate);
+        applied = true;
+      }
+      if (fix.toDate) {
+        setToDate(fix.toDate);
+        applied = true;
+      }
+      if (fix.notes?.length) {
+        setNotes(fix.notes);
+      }
+      if (returnToStep2 && applied) {
+        setStep(2);
+      }
+      if (!applied) {
         setErr("No pude corregir automaticamente. Ajusta manualmente y valida de nuevo.");
       }
     } catch (e: any) {
@@ -442,13 +465,83 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
             </div>
           ))}
           {notes.length > 0 && (
-            <div style={{ color: "#a6adbb" }}>{notes.join(" - ")}</div>
+            <div style={{ color: "#a6adbb" }}>Notas IA: {notes.join(" - ")}</div>
           )}
           {hasHigh && (
             <div style={{ color: "#f5b4b4" }}>
               Hay issues high. Podes corregirlos o continuar igual.
             </div>
           )}
+          <h3>KRs actuales</h3>
+          {krs.length === 0 && (
+            <div style={{ color: "#a6adbb" }}>
+              No hay KRs cargados. Agrega al menos uno para validar.
+            </div>
+          )}
+          {krs.map((kr, idx) => (
+            <div
+              key={idx}
+              style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr" }}
+            >
+              <input
+                placeholder="Titulo"
+                value={kr.title}
+                onChange={(e) => {
+                  const next = [...krs];
+                  next[idx].title = e.target.value;
+                  setKrs(next);
+                }}
+              />
+              <input
+                placeholder="Metrica"
+                value={kr.metricName}
+                onChange={(e) => {
+                  const next = [...krs];
+                  next[idx].metricName = e.target.value;
+                  setKrs(next);
+                }}
+              />
+              <input
+                placeholder="Unidad"
+                value={kr.unit}
+                onChange={(e) => {
+                  const next = [...krs];
+                  next[idx].unit = e.target.value;
+                  setKrs(next);
+                }}
+              />
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  placeholder="Target"
+                  value={kr.targetValue}
+                  onChange={(e) => {
+                    const next = [...krs];
+                    next[idx].targetValue = e.target.value;
+                    setKrs(next);
+                  }}
+                />
+                <button
+                  title="Eliminar"
+                  onClick={() => {
+                    const next = [...krs];
+                    next.splice(idx, 1);
+                    setKrs(next);
+                  }}
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))}
+          <div>
+            <button
+              onClick={() =>
+                setKrs([...krs, { title: "", metricName: "", unit: "", targetValue: "" }])
+              }
+            >
+              Agregar KR
+            </button>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setStep(2)}>Volver</button>
             {hasHigh && (

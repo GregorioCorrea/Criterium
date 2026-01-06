@@ -23,6 +23,23 @@ type OkrBoard = {
   } | null;
 };
 
+function formatHealth(value: string | null | undefined): string {
+  switch (value) {
+    case "no_target":
+      return "sin target";
+    case "no_checkins":
+      return "sin avances";
+    case "off_track":
+      return "fuera de rumbo";
+    case "at_risk":
+      return "en riesgo";
+    case "on_track":
+      return "en rumbo";
+    default:
+      return value || "-";
+  }
+}
+
 export default function Board() {
   const [data, setData] = useState<OkrBoard[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -61,8 +78,8 @@ export default function Board() {
             <th>Fechas</th>
             <th>KRs</th>
             <th>Progreso</th>
-            <th>Health</th>
-            <th>Why</th>
+            <th>Estado</th>
+            <th>Motivo</th>
           </tr>
         </thead>
         <tbody>
@@ -76,8 +93,8 @@ export default function Board() {
               </td>
               <td>{o.summary?.krCount ?? 0}</td>
               <td>{o.summary?.avgProgressPct === null ? "-" : `${o.summary.avgProgressPct}%`}</td>
-              <td>{o.summary?.overallHealth ?? "-"}</td>
-              <td>{o.insights?.explanationShort ?? "—"}</td>
+              <td>{formatHealth(o.summary?.overallHealth ?? null)}</td>
+              <td>{o.insights?.explanationShort ?? "-"}</td>
             </tr>
           ))}
         </tbody>

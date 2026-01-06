@@ -25,7 +25,9 @@ export function computeKrInsights(
   checkins: Array<{ value: number }>
 ): KrInsightsOutput {
   const hasTarget = kr.targetValue !== null && kr.targetValue !== undefined && kr.targetValue > 0;
-  const hasCheckins = checkins.length > 0;
+  const hasCheckins =
+    checkins.length > 0 ||
+    (kr.currentValue !== null && kr.currentValue !== undefined);
 
   if (!hasTarget) {
     return {
@@ -39,9 +41,9 @@ export function computeKrInsights(
 
   if (!hasCheckins) {
     return {
-      explanationShort: "Sin check-ins",
-      explanationLong: "Aun no hay check-ins registrados para este KR.",
-      suggestion: "Carga el primer check-in con el valor actual",
+      explanationShort: "Sin avances registrados",
+      explanationLong: "Aun no hay avances registrados para este KR.",
+      suggestion: "Carga el primer avance con el valor actual",
       risk: "high",
     };
   }

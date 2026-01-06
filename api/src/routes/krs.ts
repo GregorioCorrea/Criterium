@@ -6,6 +6,7 @@ import { requireTenant } from "../middleware/tenantContext";
 import { okrExists } from "../repos/okrRepo";
 import { getKrInsightsByKrId } from "../repos/insightsRepo";
 import { recomputeKrAndOkrInsights } from "../services/insights";
+import { computeProgressPct } from "../domain/krHealth";
 import { aiValidateKr, ruleValidateKr } from "../services/aiOkr";
 
 const router = Router();
@@ -98,6 +99,12 @@ router.post("/:krId/checkins", async (req, res, next) => {
     const kr = await getKrById(req.tenantId!, req.params.krId);
     if (!kr) {
       return res.status(404).json({ error: "kr_not_found" });
+    }
+    if (kr.targetValue !== null && kr.targetValue !== undefined) {
+      const progress = computeProgressPct(kr.currentValue, kr.targetValue);
+      if (progress !== null && progress >= 100) {
+        return res.status(409).json({ error: "kr_already_completed" });
+      }
     }
 
     const created = await createCheckin({

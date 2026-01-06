@@ -45,6 +45,23 @@ type OkrDetail = {
   krs: Kr[];
 };
 
+function formatHealth(value: string | null | undefined): string {
+  switch (value) {
+    case "no_target":
+      return "sin target";
+    case "no_checkins":
+      return "sin avances";
+    case "off_track":
+      return "fuera de rumbo";
+    case "at_risk":
+      return "en riesgo";
+    case "on_track":
+      return "en rumbo";
+    default:
+      return value || "-";
+  }
+}
+
 export default function OkrDetail() {
   const { okrId } = useParams();
   const [data, setData] = useState<OkrDetail | null>(null);
@@ -66,6 +83,9 @@ export default function OkrDetail() {
   });
   const [showKrModal, setShowKrModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
+  const selectableKrs = data.krs.filter(
+    (kr) => kr.progressPct === null || kr.progressPct < 100
+  );
 
   const krDirty =
     krForm.title.trim().length > 0 ||
@@ -144,7 +164,7 @@ export default function OkrDetail() {
           <b>Status:</b> {data.status}
         </div>
         <div>
-          <b>Health:</b> {data.summary?.overallHealth}
+          <b>Estado:</b> {formatHealth(data.summary?.overallHealth)}
         </div>
         <div>
           <b>Progreso promedio:</b> {data.summary?.avgProgressPct ?? "-"}%
@@ -175,7 +195,7 @@ export default function OkrDetail() {
             <th>Actual</th>
             <th>Target</th>
             <th>Progreso</th>
-            <th>Health</th>
+            <th>Estado</th>
             <th>Estado y recomendacion</th>
           </tr>
         </thead>
@@ -189,7 +209,7 @@ export default function OkrDetail() {
                 {kr.targetValue ?? "-"} {kr.unit ?? ""}
               </td>
               <td>{kr.progressPct === null ? "-" : `${Math.round(kr.progressPct)}%`}</td>
-              <td>{kr.health}</td>
+              <td>{formatHealth(kr.health)}</td>
               <td>
                 <div>
                   {kr.insights?.explanationLong ??
@@ -290,13 +310,18 @@ export default function OkrDetail() {
 
       {showCheckinModal && (
         <Modal title="Registrar check-in" onClose={() => setShowCheckinModal(false)} dirty={checkinDirty}>
+          {selectableKrs.length === 0 && (
+            <div style={{ color: "#a6adbb", marginBottom: 8 }}>
+              Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
+            </div>
+          )}
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 2fr" }}>
             <select
               value={checkinForm.krId}
               onChange={(e) => setCheckinForm({ ...checkinForm, krId: e.target.value })}
             >
               <option value="">Elegi un KR</option>
-              {data.krs.map((kr) => (
+              {selectableKrs.map((kr) => (
                 <option key={kr.id} value={kr.id}>
                   {kr.title}
                 </option>
@@ -314,7 +339,7 @@ export default function OkrDetail() {
             />
           </div>
           <button
-            disabled={busy}
+            disabled={busy || selectableKrs.length === 0}
             onClick={async () => {
               if (!checkinForm.krId) return;
               setBusy(true);
