@@ -55,28 +55,45 @@ function normalizeIssues(issues: any[]): AiIssue[] {
     }));
 }
 
-async function runChatJson(prompt: string, input: unknown, maxTokens: number) {
+async function runChatJson(promptName: string, prompt: string, input: unknown, maxTokens: number) {
   const ai = getAiClient();
   if (!ai || !AI_DEPLOYMENT) return null;
+  const inputJson = JSON.stringify(input);
+  console.log("[ai] chat request", {
+    promptName,
+    promptChars: prompt.length,
+    promptPreview: prompt.slice(0, 400),
+    inputChars: inputJson.length,
+    inputPreview: inputJson.slice(0, 600),
+    maxTokens,
+  });
   const result = await withRetry(
     () =>
       ai.chat.completions.create({
         model: AI_DEPLOYMENT,
         messages: [
           { role: "developer", content: prompt },
-          { role: "user", content: JSON.stringify(input) },
+          { role: "user", content: inputJson },
         ],
         max_completion_tokens: maxTokens,
         response_format: { type: "json_object" },
       }),
     1
   );
-  const content = result.choices[0]?.message?.content ?? "";
+  const choice = result.choices[0];
+  const message = choice?.message;
+  const content = message?.content ?? "";
+  console.log("[ai] chat response meta", {
+    responseId: (result as any)?.id,
+    finishReason: choice?.finish_reason,
+    usage: result.usage,
+    contentLength: content.length,
+    contentPreview: content.slice(0, 600),
+    messageRole: message?.role,
+    refusal: message?.refusal,
+  });
   if (!content) {
-    console.warn("[ai] chat empty content", {
-      finishReason: result.choices[0]?.finish_reason,
-      usage: result.usage,
-    });
+    console.warn("[ai] chat empty content");
   }
   return content;
 }
@@ -94,6 +111,7 @@ export async function aiDraftOkr(input: {
 
   try {
     const content = await runChatJson(
+      "okr-draft",
       prompt,
       input,
       promptConfig.max_output_tokens?.okr_draft ?? 900
@@ -145,6 +163,7 @@ export async function aiFixOkr(input: {
 
   try {
     const content = await runChatJson(
+      "okr-fix",
       prompt,
       input,
       promptConfig.max_output_tokens?.okr_fix ?? 700
@@ -179,6 +198,7 @@ export async function aiValidateOkr(input: {
 
   try {
     const content = await runChatJson(
+      "okr-validate",
       prompt,
       input,
       promptConfig.max_output_tokens?.okr_validate ?? 700
@@ -206,6 +226,7 @@ export async function aiValidateKr(input: {
 
   try {
     const content = await runChatJson(
+      "kr-validate",
       prompt,
       input,
       promptConfig.max_output_tokens?.kr_validate ?? 500
