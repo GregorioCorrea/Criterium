@@ -55,7 +55,35 @@ function normalizeIssues(issues: any[]): AiIssue[] {
     }));
 }
 
-async function runChatJson(promptName: string, prompt: string, input: unknown, maxTokens: number) {
+function extractMessageContent(message: any): string {
+  if (!message) return "";
+  const content = message.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const chunks: string[] = [];
+    for (const part of content) {
+      if (typeof part === "string") {
+        chunks.push(part);
+      } else if (typeof part?.text === "string") {
+        chunks.push(part.text);
+      } else if (typeof part?.text?.value === "string") {
+        chunks.push(part.text.value);
+      }
+    }
+    return chunks.join("");
+  }
+  if (typeof content?.text === "string") return content.text;
+  if (typeof content?.text?.value === "string") return content.text.value;
+  return "";
+}
+
+async function runChatJson(
+  promptName: string,
+  prompt: string,
+  input: unknown,
+  maxTokens: number,
+  reasoningEffort?: string
+) {
   const ai = getAiClient();
   if (!ai || !AI_DEPLOYMENT) return null;
   const inputJson = JSON.stringify(input);
@@ -66,23 +94,26 @@ async function runChatJson(promptName: string, prompt: string, input: unknown, m
     inputChars: inputJson.length,
     inputPreview: inputJson.slice(0, 600),
     maxTokens,
+    reasoningEffort: reasoningEffort ?? "default",
   });
-  const result = await withRetry(
-    () =>
-      ai.chat.completions.create({
-        model: AI_DEPLOYMENT,
-        messages: [
-          { role: "developer", content: prompt },
-          { role: "user", content: inputJson },
-        ],
-        max_completion_tokens: maxTokens,
-        response_format: { type: "json_object" },
-      }),
-    1
-  );
+  const result = await withRetry(() => {
+    const payload: any = {
+      model: AI_DEPLOYMENT,
+      messages: [
+        { role: "developer", content: prompt },
+        { role: "user", content: inputJson },
+      ],
+      max_completion_tokens: maxTokens,
+      response_format: { type: "json_object" },
+    };
+    if (reasoningEffort) {
+      payload.reasoning = { effort: reasoningEffort };
+    }
+    return ai.chat.completions.create(payload);
+  }, 1);
   const choice = result.choices[0];
   const message = choice?.message;
-  const content = message?.content ?? "";
+  const content = extractMessageContent(message);
   console.log("[ai] chat response meta", {
     responseId: (result as any)?.id,
     finishReason: choice?.finish_reason,
@@ -91,6 +122,8 @@ async function runChatJson(promptName: string, prompt: string, input: unknown, m
     contentPreview: content.slice(0, 600),
     messageRole: message?.role,
     refusal: message?.refusal,
+    contentType: typeof message?.content,
+    contentRawPreview: JSON.stringify(message?.content)?.slice(0, 600),
   });
   if (!content) {
     console.warn("[ai] chat empty content");
@@ -114,7 +147,8 @@ export async function aiDraftOkr(input: {
       "okr-draft",
       prompt,
       input,
-      promptConfig.max_output_tokens?.okr_draft ?? 900
+      promptConfig.max_output_tokens?.okr_draft ?? 900,
+      promptConfig.reasoning?.effort
     );
     if (!content) return null;
     const parsed = safeParseJson<AiDraftOkrOutput>(content);
@@ -166,7 +200,8 @@ export async function aiFixOkr(input: {
       "okr-fix",
       prompt,
       input,
-      promptConfig.max_output_tokens?.okr_fix ?? 700
+      promptConfig.max_output_tokens?.okr_fix ?? 700,
+      promptConfig.reasoning?.effort
     );
     if (!content) return null;
     const parsed = safeParseJson<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] }>(
@@ -201,7 +236,8 @@ export async function aiValidateOkr(input: {
       "okr-validate",
       prompt,
       input,
-      promptConfig.max_output_tokens?.okr_validate ?? 700
+      promptConfig.max_output_tokens?.okr_validate ?? 700,
+      promptConfig.reasoning?.effort
     );
     if (!content) return null;
     const parsed = safeParseJson<AiValidateOkrOutput>(content);
@@ -229,7 +265,8 @@ export async function aiValidateKr(input: {
       "kr-validate",
       prompt,
       input,
-      promptConfig.max_output_tokens?.kr_validate ?? 500
+      promptConfig.max_output_tokens?.kr_validate ?? 500,
+      promptConfig.reasoning?.effort
     );
     if (!content) return null;
     const parsed = safeParseJson<AiValidateKrOutput>(content);
