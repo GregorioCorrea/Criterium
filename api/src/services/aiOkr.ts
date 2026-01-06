@@ -1,4 +1,6 @@
-import { getAiClient, getAiDeployment, safeParseJson, withRetry } from "./aiClient";
+import { safeParseJson } from "./aiClient";
+import { callResponsesApi } from "./aiResponses";
+import { loadAiPromptConfig, loadPrompt } from "./aiPromptLoader";
 
 export type AiDraftOkrOutput = {
   objectiveRefined: string | null;
@@ -29,7 +31,7 @@ export type AiValidateKrOutput = {
   suggestedTargetValue?: number;
 };
 
-const AI_DEPLOYMENT = getAiDeployment();
+const promptConfig = loadAiPromptConfig();
 
 function normalizeSeverity(value: string | undefined | null): "high" | "medium" | "low" | null {
   if (!value) return null;
@@ -61,68 +63,23 @@ export async function aiDraftOkr(input: {
   existingKrTitles?: string[];
   answers?: string[];
 }): Promise<AiDraftOkrOutput | null> {
-  const ai = getAiClient();
-  if (!ai) return null;
-
-  const prompt = `
-Devuelve SOLO JSON valido con:
-{
-  "objectiveRefined": string | null,
-  "questions": [string, string, string],
-  "suggestedKrs": [
-    { "title": string, "metricName": string|null, "unit": string|null, "targetValue": number }
-  ],
-  "warnings": string[]
-}
-Reglas:
-- 3 preguntas inteligentes.
-- 3 KRs numericos, targetValue > 0.
-- No repetir KRs existentes.
-`;
+  const prompt = loadPrompt("okr-draft.skprompt.txt");
+  if (!prompt) return null;
 
   try {
-    const result = await withRetry(
-      () =>
-        ai.chat.completions.create({
-          model: AI_DEPLOYMENT ?? "",
-          messages: [
-            { role: "developer", content: prompt },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-          max_completion_tokens: 2048,
-        }),
-      1
-    );
-    let content = result.choices[0]?.message?.content ?? "";
-    if (!content) {
-      console.warn("[ai] draft okr empty content", {
-        finishReason: result.choices[0]?.finish_reason,
-        usage: result.usage,
-      });
-      try {
-        const retry = await ai.chat.completions.create({
-          model: AI_DEPLOYMENT ?? "",
-          messages: [
-            { role: "developer", content: prompt },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-          max_completion_tokens: 2048,
-          response_format: { type: "json_object" },
-        });
-        content = retry.choices[0]?.message?.content ?? "";
-      } catch (err: any) {
-        console.warn("[ai] draft okr retry failed", {
-          message: err?.message,
-          status: err?.status,
-          code: err?.code,
-        });
-      }
-    }
-    const parsed = safeParseJson<AiDraftOkrOutput>(content);
+    const result = await callResponsesApi({
+      system: prompt,
+      user: JSON.stringify(input),
+      maxOutputTokens: promptConfig.max_output_tokens?.okr_draft ?? 1200,
+      responseFormat: { type: "json_object" },
+      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
+    });
+    if (!result?.text) return null;
+    const parsed = safeParseJson<AiDraftOkrOutput>(result.text);
     if (!parsed || !Array.isArray(parsed.suggestedKrs)) {
       console.warn("[ai] draft okr parse failed", {
-        length: content.length,
-        preview: content.slice(0, 200),
+        length: result.text.length,
+        preview: result.text.slice(0, 200),
       });
       return null;
     }
@@ -147,8 +104,6 @@ Reglas:
   } catch (err: any) {
     console.warn("[ai] draft okr failed", {
       message: err?.message,
-      status: err?.status,
-      code: err?.code,
     });
     return null;
   }
@@ -161,38 +116,20 @@ export async function aiFixOkr(input: {
   krs: Array<{ title: string; metricName?: string | null; unit?: string | null; targetValue: number }>;
   issues: AiIssue[];
 }): Promise<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] } | null> {
-  const ai = getAiClient();
-  if (!ai) return null;
-
-  const prompt = `
-Eres un asistente que corrige KRs. Devuelve SOLO un JSON valido con:
-{
-  "correctedKrs": [
-    { "title": string, "metricName": string|null, "unit": string|null, "targetValue": number }
-  ],
-  "notes": string[]
-}
-Reglas:
-- Cada KR debe ser numerico con targetValue > 0.
-- Corrige issues high sin perder el objetivo original.
-`;
+  const prompt = loadPrompt("okr-fix.skprompt.txt");
+  if (!prompt) return null;
 
   try {
-    const result = await withRetry(
-      () =>
-        ai.chat.completions.create({
-          model: AI_DEPLOYMENT ?? "",
-          messages: [
-            { role: "developer", content: prompt },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-          max_completion_tokens: 700,
-        }),
-      1
-    );
-    const content = result.choices[0]?.message?.content ?? "";
+    const result = await callResponsesApi({
+      system: prompt,
+      user: JSON.stringify(input),
+      maxOutputTokens: promptConfig.max_output_tokens?.okr_fix ?? 700,
+      responseFormat: { type: "json_object" },
+      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
+    });
+    if (!result?.text) return null;
     const parsed = safeParseJson<{ correctedKrs: AiDraftOkrOutput["suggestedKrs"]; notes?: string[] }>(
-      content
+      result.text
     );
     if (!parsed || !Array.isArray(parsed.correctedKrs)) return null;
     const correctedKrs = parsed.correctedKrs
@@ -215,36 +152,19 @@ export async function aiValidateOkr(input: {
   toDate: string;
   krs: Array<{ title: string; metricName?: string | null; unit?: string | null; targetValue: number }>;
 }): Promise<AiValidateOkrOutput | null> {
-  const ai = getAiClient();
-  if (!ai) return null;
-
-  const prompt = `
-Eres un validador de OKRs. Devuelve SOLO un JSON valido con:
-{
-  "issues": [
-    { "severity": "high|medium|low", "code": string, "message": string, "fixSuggestion": string }
-  ],
-  "score": number
-}
-Detecta: objetivos vagos, fechas incoherentes, KRs no medibles, target faltante, demasiados KRs.
-Si no hay issues, devuelve issues: [].
-`;
+  const prompt = loadPrompt("okr-validate.skprompt.txt");
+  if (!prompt) return null;
 
   try {
-    const result = await withRetry(
-      () =>
-        ai.chat.completions.create({
-          model: AI_DEPLOYMENT ?? "",
-          messages: [
-            { role: "developer", content: prompt },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-          max_completion_tokens: 700,
-        }),
-      1
-    );
-    const content = result.choices[0]?.message?.content ?? "";
-    const parsed = safeParseJson<AiValidateOkrOutput>(content);
+    const result = await callResponsesApi({
+      system: prompt,
+      user: JSON.stringify(input),
+      maxOutputTokens: promptConfig.max_output_tokens?.okr_validate ?? 700,
+      responseFormat: { type: "json_object" },
+      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
+    });
+    if (!result?.text) return null;
+    const parsed = safeParseJson<AiValidateOkrOutput>(result.text);
     if (!parsed || !Array.isArray(parsed.issues)) return null;
     return {
       issues: normalizeIssues(parsed.issues),
@@ -261,36 +181,19 @@ export async function aiValidateKr(input: {
   unit?: string | null;
   targetValue?: number | null;
 }): Promise<AiValidateKrOutput | null> {
-  const ai = getAiClient();
-  if (!ai) return null;
-
-  const prompt = `
-Eres un validador de KRs numericos. Devuelve SOLO un JSON valido con:
-{
-  "issues": [
-    { "severity": "high|medium|low", "code": string, "message": string, "fixSuggestion": string }
-  ],
-  "suggestedTargetValue": number|null
-}
-Reglas: KR debe ser medible, cuantitativo y targetValue > 0.
-Si no hay issues, issues: [].
-`;
+  const prompt = loadPrompt("kr-validate.skprompt.txt");
+  if (!prompt) return null;
 
   try {
-    const result = await withRetry(
-      () =>
-        ai.chat.completions.create({
-          model: AI_DEPLOYMENT ?? "",
-          messages: [
-            { role: "developer", content: prompt },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-          max_completion_tokens: 500,
-        }),
-      1
-    );
-    const content = result.choices[0]?.message?.content ?? "";
-    const parsed = safeParseJson<AiValidateKrOutput>(content);
+    const result = await callResponsesApi({
+      system: prompt,
+      user: JSON.stringify(input),
+      maxOutputTokens: promptConfig.max_output_tokens?.kr_validate ?? 500,
+      responseFormat: { type: "json_object" },
+      reasoningEffort: promptConfig.reasoning?.effort ?? "low",
+    });
+    if (!result?.text) return null;
+    const parsed = safeParseJson<AiValidateKrOutput>(result.text);
     if (!parsed || !Array.isArray(parsed.issues)) return null;
     return {
       issues: normalizeIssues(parsed.issues),

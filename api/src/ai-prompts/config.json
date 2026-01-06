@@ -1,0 +1,11 @@
+{
+  "max_output_tokens": {
+    "okr_draft": 1200,
+    "okr_validate": 700,
+    "kr_validate": 500,
+    "okr_fix": 700
+  },
+  "reasoning": {
+    "effort": "low"
+  }
+}
