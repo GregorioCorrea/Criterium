@@ -83,9 +83,6 @@ export default function OkrDetail() {
   });
   const [showKrModal, setShowKrModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
-  const selectableKrs = data.krs.filter(
-    (kr) => kr.progressPct === null || kr.progressPct < 100
-  );
 
   const krDirty =
     krForm.title.trim().length > 0 ||
@@ -136,6 +133,10 @@ export default function OkrDetail() {
 
   if (err) return <pre style={{ padding: 16 }}>{err}</pre>;
   if (!data) return <div style={{ padding: 16 }}>Cargando.</div>;
+
+  const selectableKrs = data.krs.filter(
+    (kr) => kr.progressPct === null || kr.progressPct < 100
+  );
 
   return (
     <div
