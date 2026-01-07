@@ -264,6 +264,9 @@ export async function aiValidateOkr(input: {
   fromDate: string;
   toDate: string;
   krs: Array<{ title: string; metricName?: string | null; unit?: string | null; targetValue: number }>;
+  lockedObjective?: boolean;
+  lockedDates?: boolean;
+  resolvedIssueCodes?: string[];
 }): Promise<AiValidateOkrOutput | null> {
   const prompt = loadPrompt("okr-validate.skprompt.txt");
   if (!prompt) return null;

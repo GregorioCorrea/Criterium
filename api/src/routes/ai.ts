@@ -103,7 +103,8 @@ router.post("/okr/draft", async (req, res) => {
 });
 
 router.post("/okr/validate", async (req, res) => {
-  const { objective, fromDate, toDate, krs } = req.body ?? {};
+  const { objective, fromDate, toDate, krs, lockedObjective, lockedDates, resolvedIssueCodes } =
+    req.body ?? {};
   if (!objective || !fromDate || !toDate || !Array.isArray(krs)) {
     return res.status(400).json({ error: "missing_fields" });
   }
@@ -113,9 +114,21 @@ router.post("/okr/validate", async (req, res) => {
   console.log("[ai] okr validate", {
     fingerprint,
     krs: krs.length,
+    lockedObjective: !!lockedObjective,
+    lockedDates: !!lockedDates,
+    resolvedCount: Array.isArray(resolvedIssueCodes) ? resolvedIssueCodes.length : 0,
   });
 
-  const ai = await aiValidateOkr({ today, objective, fromDate, toDate, krs });
+  const ai = await aiValidateOkr({
+    today,
+    objective,
+    fromDate,
+    toDate,
+    krs,
+    lockedObjective: !!lockedObjective,
+    lockedDates: !!lockedDates,
+    resolvedIssueCodes: Array.isArray(resolvedIssueCodes) ? resolvedIssueCodes : [],
+  });
   if (!ai) {
     const rules = ruleValidateOkr({
       objective,

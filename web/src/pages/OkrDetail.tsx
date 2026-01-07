@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { apiDelete, apiGet, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
-import Modal from "../components/Modal";
 
 type Kr = {
   id: string;
@@ -93,9 +92,6 @@ export default function OkrDetail() {
     value: "",
     comment: "",
   });
-  const [showKrModal, setShowKrModal] = useState(false);
-  const [showCheckinModal, setShowCheckinModal] = useState(false);
-  const [showAiKrModal, setShowAiKrModal] = useState(false);
   const [aiContext, setAiContext] = useState("");
   const [aiDraft, setAiDraft] = useState<AiDraftResponse | null>(null);
   const [aiQuestions, setAiQuestions] = useState<string[]>([]);
@@ -114,16 +110,6 @@ export default function OkrDetail() {
     krId?: string;
     message: string;
   } | null>(null);
-
-  const krDirty =
-    krForm.title.trim().length > 0 ||
-    krForm.metricName.trim().length > 0 ||
-    krForm.unit.trim().length > 0 ||
-    krForm.targetValue.trim().length > 0;
-  const checkinDirty =
-    checkinForm.krId.trim().length > 0 ||
-    checkinForm.value.trim().length > 0 ||
-    checkinForm.comment.trim().length > 0;
 
   const formatApiError = (message: string): string => {
     const raw = message.replace(/^API \d+:\s*/i, "");
@@ -163,6 +149,13 @@ export default function OkrDetail() {
   }, [okrId]);
 
   if (!data) return <div style={{ padding: 16 }}>Cargando.</div>;
+
+  const panelStyle = {
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    padding: 12,
+    background: "var(--panel)",
+  };
 
   const selectableKrs = data.krs.filter(
     (kr) => kr.progressPct === null || kr.progressPct < 100
@@ -248,18 +241,61 @@ export default function OkrDetail() {
     }
   };
 
+  const openSection = (id: string) => {
+    const el = document.getElementById(id) as HTMLDetailsElement | null;
+    if (el) {
+      el.open = true;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-content">
         {err && (
-          <Modal title="Error" onClose={() => setErr(null)}>
-            <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ ...panelStyle, borderColor: "#5a2b2b", color: "#f5b4b4", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div>{err}</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setErr(null)}>Cerrar</button>
-              </div>
+              <button onClick={() => setErr(null)}>Cerrar</button>
             </div>
-          </Modal>
+          </div>
+        )}
+
+        {deleteConfirm && (
+          <div style={{ ...panelStyle, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Confirmar borrado</div>
+            <div style={{ marginBottom: 8 }}>{deleteConfirm.message}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setDeleteConfirm(null)}>Cancelar</button>
+              <button
+                onClick={async () => {
+                  try {
+                    if (deleteConfirm.type === "okr" && deleteConfirm.okrId) {
+                      console.log("[okr] delete request", { okrId: deleteConfirm.okrId });
+                      await apiDelete<{ ok: boolean }>(`/okrs/${deleteConfirm.okrId}`);
+                      console.log("[okr] delete response", { okrId: deleteConfirm.okrId });
+                      window.location.href = "/";
+                      return;
+                    }
+                    if (deleteConfirm.type === "kr" && deleteConfirm.krId) {
+                      console.log("[kr] delete request", { krId: deleteConfirm.krId });
+                      await apiDelete<{ ok: boolean }>(`/krs/${deleteConfirm.krId}`);
+                      console.log("[kr] delete response", { krId: deleteConfirm.krId });
+                      setDeleteConfirm(null);
+                      load();
+                      return;
+                    }
+                    setDeleteConfirm(null);
+                  } catch (e: any) {
+                    setDeleteConfirm(null);
+                    setErr(formatApiError(e.message));
+                  }
+                }}
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
         )}
         <div style={{ marginBottom: 12 }}>
           <Link to="/">{"<"} Volver</Link>
@@ -304,126 +340,92 @@ export default function OkrDetail() {
         </div>
 
         <h3>Key Results</h3>
-        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>Titulo</th>
-            <th>Metrica</th>
-            <th>Actual</th>
-            <th>Target</th>
-            <th>Progreso</th>
-            <th>Estado</th>
-            <th>Estado y recomendacion</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.krs.map((kr) => (
-            <tr key={kr.id} style={{ borderBottom: "1px solid #eee", verticalAlign: "top" }}>
-              <td>{kr.title}</td>
-              <td>{kr.metricName ?? "-"}</td>
-              <td>{kr.currentValue ?? "-"}</td>
-              <td>
-                {kr.targetValue ?? "-"} {kr.unit ?? ""}
-              </td>
-              <td>{kr.progressPct === null ? "-" : `${Math.round(kr.progressPct)}%`}</td>
-              <td>{formatHealth(kr.health)}</td>
-              <td>
-                <div>
-                  {kr.insights?.explanationLong ??
-                    kr.insights?.explanationShort ??
-                    "Sin informacion"}
-                </div>
-                <div>
-                  <b>Siguiente:</b> {kr.insights?.suggestion ?? "-"}
-                </div>
-              </td>
-              <td>
-                <button onClick={() => handleDeleteKr(kr.id)}>Eliminar</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
-          <button onClick={() => setShowKrModal(true)}>Agregar KR</button>
-          <button onClick={() => setShowAiKrModal(true)}>Proponer KRs con IA</button>
-          <button onClick={() => setShowCheckinModal(true)}>Registrar check-in</button>
+        <div className="table-wrap">
+          <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                <th>Titulo</th>
+                <th>Metrica</th>
+                <th>Actual</th>
+                <th>Target</th>
+                <th>Progreso</th>
+                <th>Estado</th>
+                <th>Estado y recomendacion</th>
+                <th style={{ width: 120, whiteSpace: "nowrap" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.krs.map((kr) => (
+                <tr key={kr.id} style={{ borderBottom: "1px solid #eee", verticalAlign: "top" }}>
+                  <td>{kr.title}</td>
+                  <td>{kr.metricName ?? "-"}</td>
+                  <td>{kr.currentValue ?? "-"}</td>
+                  <td>
+                    {kr.targetValue ?? "-"} {kr.unit ?? ""}
+                  </td>
+                  <td>{kr.progressPct === null ? "-" : `${Math.round(kr.progressPct)}%`}</td>
+                  <td>{formatHealth(kr.health)}</td>
+                  <td>
+                    <div>
+                      {kr.insights?.explanationLong ??
+                        kr.insights?.explanationShort ??
+                        "Sin informacion"}
+                    </div>
+                    <div>
+                      <b>Siguiente:</b> {kr.insights?.suggestion ?? "-"}
+                    </div>
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button onClick={() => handleDeleteKr(kr.id)}>Eliminar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {deleteConfirm && (
-          <Modal title="Confirmar borrado" onClose={() => setDeleteConfirm(null)}>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>{deleteConfirm.message}</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setDeleteConfirm(null)}>Cancelar</button>
-                <button
-                  onClick={async () => {
-                    try {
-                      if (deleteConfirm.type === "okr" && deleteConfirm.okrId) {
-                        console.log("[okr] delete request", { okrId: deleteConfirm.okrId });
-                        await apiDelete<{ ok: boolean }>(`/okrs/${deleteConfirm.okrId}`);
-                        console.log("[okr] delete response", { okrId: deleteConfirm.okrId });
-                        window.location.href = "/";
-                        return;
-                      }
-                      if (deleteConfirm.type === "kr" && deleteConfirm.krId) {
-                        console.log("[kr] delete request", { krId: deleteConfirm.krId });
-                        await apiDelete<{ ok: boolean }>(`/krs/${deleteConfirm.krId}`);
-                        console.log("[kr] delete response", { krId: deleteConfirm.krId });
-                        setDeleteConfirm(null);
-                        load();
-                        return;
-                      }
-                      setDeleteConfirm(null);
-                    } catch (e: any) {
-                      setErr(formatApiError(e.message));
-                      setDeleteConfirm(null);
-                    }
-                  }}
-                >
-                  Borrar
-                </button>
-              </div>
+        <details id="section-add-kr" open style={{ marginTop: 20, ...panelStyle }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Agregar KR</summary>
+          {krIssues.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {krIssues.map((i, idx) => (
+                <div key={idx}>
+                  <b>{i.severity.toUpperCase()}</b> {i.message}
+                  {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
+                </div>
+              ))}
             </div>
-          </Modal>
-        )}
-
-        {showKrModal && (
-          <Modal title="Agregar KR" onClose={() => setShowKrModal(false)} dirty={krDirty}>
-            {krIssues.length > 0 && (
-              <div style={{ marginBottom: 8 }}>
-                {krIssues.map((i, idx) => (
-                  <div key={idx}>
-                    <b>{i.severity.toUpperCase()}</b> {i.message}
-                    {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
-              <input
-                placeholder="Titulo"
-                value={krForm.title}
-                onChange={(e) => setKrForm({ ...krForm, title: e.target.value })}
-              />
-              <input
-                placeholder="Metrica"
-                value={krForm.metricName}
-                onChange={(e) => setKrForm({ ...krForm, metricName: e.target.value })}
-              />
-              <input
-                placeholder="Unidad"
-                value={krForm.unit}
-                onChange={(e) => setKrForm({ ...krForm, unit: e.target.value })}
-              />
-              <input
-                placeholder="Target"
-                value={krForm.targetValue}
-                onChange={(e) => setKrForm({ ...krForm, targetValue: e.target.value })}
-              />
-            </div>
+          )}
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              gridTemplateColumns: "2fr 1fr 1fr 1fr",
+              marginTop: 8,
+            }}
+          >
+            <input
+              placeholder="Titulo"
+              value={krForm.title}
+              onChange={(e) => setKrForm({ ...krForm, title: e.target.value })}
+            />
+            <input
+              placeholder="Metrica"
+              value={krForm.metricName}
+              onChange={(e) => setKrForm({ ...krForm, metricName: e.target.value })}
+            />
+            <input
+              placeholder="Unidad"
+              value={krForm.unit}
+              onChange={(e) => setKrForm({ ...krForm, unit: e.target.value })}
+            />
+            <input
+              placeholder="Target"
+              value={krForm.targetValue}
+              onChange={(e) => setKrForm({ ...krForm, targetValue: e.target.value })}
+            />
+          </div>
+          <div style={{ marginTop: 8 }}>
             <button
               disabled={busy}
               onClick={async () => {
@@ -454,7 +456,6 @@ export default function OkrDetail() {
                     targetValue: Number(krForm.targetValue),
                   });
                   setKrForm({ title: "", metricName: "", unit: "", targetValue: "" });
-                  setShowKrModal(false);
                   load();
                 } catch (e: any) {
                   setErr(formatApiError(e.message));
@@ -465,187 +466,194 @@ export default function OkrDetail() {
             >
               {busy ? "Guardando..." : "Guardar KR"}
             </button>
-          </Modal>
-        )}
+          </div>
+        </details>
 
-        {showAiKrModal && (
-          <Modal title="Proponer KRs con IA" onClose={() => setShowAiKrModal(false)} dirty={aiBusy}>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div>
-                <b>Objetivo:</b> {data.objective}
+        <details id="section-ai-kr" style={{ marginTop: 12, ...panelStyle }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Proponer KRs con IA</summary>
+          <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+            <div>
+              <b>Objetivo:</b> {data.objective}
+            </div>
+            <div>
+              <b>Fechas:</b> {data.fromDate} - {data.toDate}
+            </div>
+            <label>
+              Contexto (opcional)
+              <input value={aiContext} onChange={(e) => setAiContext(e.target.value)} />
+            </label>
+            {aiQuestions.length > 0 && (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ fontWeight: 600 }}>Preguntas para ajustar contexto</div>
+                {aiQuestions.map((q, idx) => (
+                  <label key={idx}>
+                    {q}
+                    <input
+                      value={aiAnswers[idx] ?? ""}
+                      onChange={(e) => {
+                        const next = [...aiAnswers];
+                        next[idx] = e.target.value;
+                        setAiAnswers(next);
+                      }}
+                    />
+                  </label>
+                ))}
               </div>
-              <div>
-                <b>Fechas:</b> {data.fromDate} - {data.toDate}
-              </div>
-              <label>
-                Contexto (opcional)
-                <input value={aiContext} onChange={(e) => setAiContext(e.target.value)} />
-              </label>
-              {aiQuestions.length > 0 && (
-                <div style={{ display: "grid", gap: 8 }}>
-                  <div style={{ fontWeight: 600 }}>Preguntas para ajustar contexto</div>
-                  {aiQuestions.map((q, idx) => (
-                    <label key={idx}>
-                      {q}
-                      <input
-                        value={aiAnswers[idx] ?? ""}
-                        onChange={(e) => {
-                          const next = [...aiAnswers];
-                          next[idx] = e.target.value;
-                          setAiAnswers(next);
-                        }}
-                      />
-                    </label>
+            )}
+            {aiDraft?.warnings?.length ? (
+              <div style={{ color: "#a6adbb" }}>{aiDraft.warnings.join(" - ")}</div>
+            ) : null}
+            <button
+              disabled={aiBusy}
+              onClick={() => {
+                if (!aiReadyForSuggestions) {
+                  setErr("Responde las preguntas para continuar con la propuesta.");
+                  return;
+                }
+                handleAiDraft();
+              }}
+            >
+              {aiBusy ? "Analizando..." : aiQuestions.length > 0 ? "Proponer KRs" : "Generar preguntas"}
+            </button>
+            {aiAddError && (
+              <div style={{ border: "1px solid var(--border)", padding: 8, borderRadius: 8 }}>
+                <div style={{ marginBottom: 6 }}>
+                  <b>La IA marco issues para este KR:</b> {aiAddError.kr.title}
+                </div>
+                <div style={{ display: "grid", gap: 4 }}>
+                  {aiAddError.issues.map((i, idx) => (
+                    <div key={idx}>
+                      <b>{i.severity.toUpperCase()}</b> {i.message}
+                      {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
+                    </div>
                   ))}
                 </div>
-              )}
-              {aiDraft?.warnings?.length ? (
-                <div style={{ color: "#a6adbb" }}>{aiDraft.warnings.join(" - ")}</div>
-              ) : null}
-              <button
-                disabled={aiBusy}
-                onClick={() => {
-                  if (!aiReadyForSuggestions) {
-                    setErr("Responde las preguntas para continuar con la propuesta.");
-                    return;
-                  }
-                  handleAiDraft();
-                }}
-              >
-                {aiBusy ? "Analizando..." : aiQuestions.length > 0 ? "Proponer KRs" : "Generar preguntas"}
-              </button>
-              {aiAddError && (
-                <div style={{ border: "1px solid var(--border)", padding: 8, borderRadius: 8 }}>
-                  <div style={{ marginBottom: 6 }}>
-                    <b>La IA marco issues para este KR:</b> {aiAddError.kr.title}
-                  </div>
-                  <div style={{ display: "grid", gap: 4 }}>
-                    {aiAddError.issues.map((i, idx) => (
-                      <div key={idx}>
-                        <b>{i.severity.toUpperCase()}</b> {i.message}
-                        {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button onClick={() => setAiAddError(null)}>Cancelar</button>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button onClick={() => setAiAddError(null)}>Cancelar</button>
+                  <button
+                    onClick={async () => {
+                      if (!okrId) return;
+                      try {
+                        await apiPost(`/krs`, {
+                          okrId,
+                          title: aiAddError.kr.title,
+                          metricName: aiAddError.kr.metricName ?? null,
+                          unit: aiAddError.kr.unit ?? null,
+                          targetValue: aiAddError.kr.targetValue,
+                          allowHigh: true,
+                        });
+                        setAiAddedTitles((prev) => [...prev, aiAddError.kr.title.toLowerCase()]);
+                        setAiAddError(null);
+                        load();
+                      } catch (e: any) {
+                        setErr(formatApiError(e.message));
+                      }
+                    }}
+                  >
+                    Agregar igual
+                  </button>
+                </div>
+              </div>
+            )}
+            {aiDraft?.suggestedKrs?.length ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                {aiDraft.suggestedKrs.map((kr, idx) => (
+                  <div
+                    key={idx}
+                    style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr auto" }}
+                  >
+                    <input value={kr.title} readOnly />
+                    <input value={kr.metricName ?? ""} readOnly />
+                    <input value={kr.unit ?? ""} readOnly />
+                    <input value={String(kr.targetValue ?? "")} readOnly />
                     <button
                       onClick={async () => {
                         if (!okrId) return;
                         try {
+                          const normalized = kr.title.toLowerCase();
+                          if (aiAddedTitles.includes(normalized)) {
+                            return;
+                          }
                           await apiPost(`/krs`, {
                             okrId,
-                            title: aiAddError.kr.title,
-                            metricName: aiAddError.kr.metricName ?? null,
-                            unit: aiAddError.kr.unit ?? null,
-                            targetValue: aiAddError.kr.targetValue,
-                            allowHigh: true,
+                            title: kr.title,
+                            metricName: kr.metricName ?? null,
+                            unit: kr.unit ?? null,
+                            targetValue: kr.targetValue,
                           });
-                          setAiAddedTitles((prev) => [...prev, aiAddError.kr.title.toLowerCase()]);
-                          setAiAddError(null);
+                          setAiDraft((prev) => {
+                            if (!prev) return prev;
+                            const next = [...prev.suggestedKrs];
+                            next.splice(idx, 1);
+                            return { ...prev, suggestedKrs: next };
+                          });
+                          setAiAddedTitles((prev) => [...prev, normalized]);
                           load();
                         } catch (e: any) {
-                          setErr(formatApiError(e.message));
+                          const raw = String(e?.message || "");
+                          try {
+                            const parsed = JSON.parse(raw.replace(/^API \d+:\s*/i, ""));
+                            if (parsed?.error === "ai_validation_failed" && parsed?.issues) {
+                              setAiAddError({
+                                kr,
+                                issues: parsed.issues,
+                              });
+                              return;
+                            }
+                          } catch {
+                            // ignore parse errors
+                          }
+                          setErr(formatApiError(raw));
                         }
                       }}
                     >
-                      Agregar igual
+                      {aiAddedTitles.includes(kr.title.toLowerCase()) ? "Agregado" : "Agregar"}
                     </button>
                   </div>
-                </div>
-              )}
-              {aiDraft?.suggestedKrs?.length ? (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {aiDraft.suggestedKrs.map((kr, idx) => (
-                    <div
-                      key={idx}
-                      style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr auto" }}
-                    >
-                      <input value={kr.title} readOnly />
-                      <input value={kr.metricName ?? ""} readOnly />
-                      <input value={kr.unit ?? ""} readOnly />
-                      <input value={String(kr.targetValue ?? "")} readOnly />
-                      <button
-                        onClick={async () => {
-                          if (!okrId) return;
-                          try {
-                            const normalized = kr.title.toLowerCase();
-                            if (aiAddedTitles.includes(normalized)) {
-                              return;
-                            }
-                            await apiPost(`/krs`, {
-                              okrId,
-                              title: kr.title,
-                              metricName: kr.metricName ?? null,
-                              unit: kr.unit ?? null,
-                              targetValue: kr.targetValue,
-                            });
-                            setAiDraft((prev) => {
-                              if (!prev) return prev;
-                              const next = [...prev.suggestedKrs];
-                              next.splice(idx, 1);
-                              return { ...prev, suggestedKrs: next };
-                            });
-                            setAiAddedTitles((prev) => [...prev, normalized]);
-                            load();
-                          } catch (e: any) {
-                            const raw = String(e?.message || "");
-                            try {
-                              const parsed = JSON.parse(raw.replace(/^API \d+:\s*/i, ""));
-                              if (parsed?.error === "ai_validation_failed" && parsed?.issues) {
-                                setAiAddError({
-                                  kr,
-                                  issues: parsed.issues,
-                                });
-                                return;
-                              }
-                            } catch {
-                              // ignore parse errors
-                            }
-                            setErr(formatApiError(raw));
-                          }
-                        }}
-                      >
-                        {aiAddedTitles.includes(kr.title.toLowerCase()) ? "Agregado" : "Agregar"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </Modal>
-        )}
-
-        {showCheckinModal && (
-          <Modal title="Registrar check-in" onClose={() => setShowCheckinModal(false)} dirty={checkinDirty}>
-            {selectableKrs.length === 0 && (
-              <div style={{ color: "#a6adbb", marginBottom: 8 }}>
-                Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
-              </div>
-            )}
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 2fr" }}>
-              <select
-                value={checkinForm.krId}
-                onChange={(e) => setCheckinForm({ ...checkinForm, krId: e.target.value })}
-              >
-                <option value="">Elegi un KR</option>
-                {selectableKrs.map((kr) => (
-                  <option key={kr.id} value={kr.id}>
-                    {kr.title}
-                  </option>
                 ))}
-              </select>
-              <input
-                placeholder="Valor actual"
-                value={checkinForm.value}
-                onChange={(e) => setCheckinForm({ ...checkinForm, value: e.target.value })}
-              />
-              <input
-                placeholder="Comentario (opcional)"
-                value={checkinForm.comment}
-                onChange={(e) => setCheckinForm({ ...checkinForm, comment: e.target.value })}
-              />
+              </div>
+            ) : null}
+          </div>
+        </details>
+
+        <details id="section-checkin" style={{ marginTop: 12, ...panelStyle }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Registrar check-in</summary>
+          {selectableKrs.length === 0 && (
+            <div style={{ color: "#a6adbb", marginTop: 8 }}>
+              Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
             </div>
+          )}
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              gridTemplateColumns: "2fr 1fr 2fr",
+              marginTop: 8,
+            }}
+          >
+            <select
+              value={checkinForm.krId}
+              onChange={(e) => setCheckinForm({ ...checkinForm, krId: e.target.value })}
+            >
+              <option value="">Elegi un KR</option>
+              {selectableKrs.map((kr) => (
+                <option key={kr.id} value={kr.id}>
+                  {kr.title}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder="Valor actual"
+              value={checkinForm.value}
+              onChange={(e) => setCheckinForm({ ...checkinForm, value: e.target.value })}
+            />
+            <input
+              placeholder="Comentario (opcional)"
+              value={checkinForm.comment}
+              onChange={(e) => setCheckinForm({ ...checkinForm, comment: e.target.value })}
+            />
+          </div>
+          <div style={{ marginTop: 8 }}>
             <button
               disabled={busy || selectableKrs.length === 0}
               onClick={async () => {
@@ -657,7 +665,6 @@ export default function OkrDetail() {
                     comment: checkinForm.comment || null,
                   });
                   setCheckinForm({ krId: "", value: "", comment: "" });
-                  setShowCheckinModal(false);
                   load();
                 } catch (e: any) {
                   setErr(formatApiError(e.message));
@@ -668,8 +675,13 @@ export default function OkrDetail() {
             >
               {busy ? "Registrando..." : "Guardar check-in"}
             </button>
-          </Modal>
-        )}
+          </div>
+        </details>
+        <div className="sticky-actions" style={{ marginTop: 16 }}>
+          <button onClick={() => openSection("section-add-kr")}>Agregar KR</button>
+          <button onClick={() => openSection("section-ai-kr")}>Proponer KRs con IA</button>
+          <button onClick={() => openSection("section-checkin")}>Registrar check-in</button>
+        </div>
       </div>
     </div>
   );

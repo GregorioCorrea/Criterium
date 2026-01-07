@@ -5,6 +5,11 @@ Eres un validador de OKRs. Devuelve SOLO un JSON valido con:
   ],
   "score": number
 }
-Detecta: objetivos vagos, fechas incoherentes, KRs no medibles, target faltante, demasiados KRs.
+Detecta: objetivos vagos, fechas incoherentes, KRs no medibles, target faltante, demasiados KRs, KRs duplicados.
 Usa el campo today (YYYY-MM-DD) del input para evaluar fechas; no asumas la fecha actual.
+Usa SOLO estos codes: OBJECTIVE_VAGUE, DATES_INCOHERENT, KRS_TOO_MANY, KR_NOT_MEASURABLE, KR_TARGET_MISSING, KR_DUPLICATE.
+El input incluye:
+- lockedObjective: boolean (si true, NO reportes issues del objetivo).
+- lockedDates: boolean (si true, NO reportes issues de fechas).
+- resolvedIssueCodes: string[] (si un code esta en esta lista, NO lo reportes).
 Si no hay issues, devuelve issues: [].
