@@ -101,6 +101,8 @@ export default function OkrDetail() {
   const [aiQuestions, setAiQuestions] = useState<string[]>([]);
   const [aiAnswers, setAiAnswers] = useState<string[]>(["", "", ""]);
   const [aiBusy, setAiBusy] = useState(false);
+  const aiHasGaps = aiQuestions.some((_, idx) => !aiAnswers[idx]?.trim());
+  const aiReadyForSuggestions = aiQuestions.length === 0 || !aiHasGaps;
 
   const krDirty =
     krForm.title.trim().length > 0 ||
@@ -212,6 +214,16 @@ export default function OkrDetail() {
         existingKrTitles: data.krs.map((kr) => kr.title),
         answers: aiAnswers,
       });
+      if ((res.questions?.length ?? 0) > 0 && aiAnswers.every((a) => !a.trim())) {
+        setAiQuestions(res.questions ?? []);
+        setAiDraft({ ...res, suggestedKrs: [] });
+        setAiAnswers((prev) => {
+          const next = [...prev];
+          while (next.length < res.questions.length) next.push("");
+          return next.slice(0, res.questions.length);
+        });
+        return;
+      }
       setAiDraft(res);
       setAiQuestions(res.questions ?? []);
       if (res.questions?.length) {
@@ -437,15 +449,14 @@ export default function OkrDetail() {
               <button
                 disabled={aiBusy}
                 onClick={() => {
-                  const hasGaps = aiQuestions.some((_, idx) => !aiAnswers[idx]?.trim());
-                  if (aiQuestions.length > 0 && hasGaps) {
+                  if (!aiReadyForSuggestions) {
                     setErr("Responde las preguntas para continuar con la propuesta.");
                     return;
                   }
                   handleAiDraft();
                 }}
               >
-                {aiBusy ? "Analizando..." : "Proponer KRs"}
+                {aiBusy ? "Analizando..." : aiQuestions.length > 0 ? "Proponer KRs" : "Generar preguntas"}
               </button>
               {aiDraft?.suggestedKrs?.length ? (
                 <div style={{ display: "grid", gap: 8 }}>

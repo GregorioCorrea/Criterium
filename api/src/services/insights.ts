@@ -23,6 +23,7 @@ export async function recomputeKrAndOkrInsights(tenantId: string, krId: string):
     checkins.map((c) => ({ value: c.value }))
   );
 
+  const okr = await getOkrById(tenantId, kr.okrId);
   const krInsightAi = await generateKrInsightsAi({
     title: kr.title,
     metricName: kr.metricName,
@@ -32,6 +33,9 @@ export async function recomputeKrAndOkrInsights(tenantId: string, krId: string):
     health: computeHealth(kr.currentValue, kr.targetValue),
     checkinsCount: checkins.length,
     lastCheckinValue: checkins[0]?.value ?? null,
+    okrFromDate: okr?.fromDate ?? null,
+    okrToDate: okr?.toDate ?? null,
+    today: new Date().toISOString().slice(0, 10),
   });
 
   const krInsight = krInsightAi ?? krInsightRules;

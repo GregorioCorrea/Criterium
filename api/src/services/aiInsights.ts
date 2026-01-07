@@ -10,6 +10,9 @@ type KrAiInput = {
   health: string;
   checkinsCount: number;
   lastCheckinValue: number | null;
+  okrFromDate: string | null;
+  okrToDate: string | null;
+  today: string;
 };
 
 type OkrAiInput = {
@@ -80,6 +83,7 @@ Eres un analista de OKRs. Devuelve SOLO un JSON valido.
 Escribe en castellano. No uses la palabra "salud"; usa "estado".
 Usa progressPct y estado para el diagnostico.
 Si progressPct >= 100, indica que el objetivo esta alcanzado y sugiere mantener.
+Si queda mucho tiempo del OKR y el progreso es bajo, evita alarmismo temprano.
 Campos obligatorios:
 - explanationShort (string <= 280)
 - explanationLong (string)

@@ -167,6 +167,11 @@ router.delete("/:krId", async (req, res, next) => {
       return res.status(404).json({ error: "kr_not_found" });
     }
     const info = await getKrDeleteInfo(req.tenantId!, req.params.krId);
+    console.log("[krs] delete", {
+      krId: req.params.krId,
+      tenantId: req.tenantId,
+      checkinsCount: info?.checkinsCount ?? 0,
+    });
     await deleteKrCascade(req.tenantId!, req.params.krId);
     await recomputeKrAndOkrInsights(req.tenantId!, kr.okrId);
     res.json({ ok: true, deleted: info ?? { krId: kr.id, checkinsCount: 0 } });

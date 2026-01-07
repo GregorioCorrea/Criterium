@@ -162,6 +162,15 @@ export async function aiDraftOkr(input: {
       return null;
     }
 
+    const normalizeTitle = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    const existingTitles = new Set(
+      (input.existingKrTitles ?? []).map((t) => normalizeTitle(String(t)))
+    );
+
     const suggestedKrs = parsed.suggestedKrs
       .map((kr) => ({
         title: String(kr.title ?? "").trim(),
@@ -170,13 +179,21 @@ export async function aiDraftOkr(input: {
         targetValue: Number(kr.targetValue),
       }))
       .filter((kr) => kr.title && Number.isFinite(kr.targetValue) && kr.targetValue > 0);
+    const unique: typeof suggestedKrs = [];
+    const seen = new Set<string>(existingTitles);
+    for (const kr of suggestedKrs) {
+      const key = normalizeTitle(kr.title);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(kr);
+    }
 
     return {
       objectiveRefined: parsed.objectiveRefined ? String(parsed.objectiveRefined) : null,
       questions: Array.isArray(parsed.questions)
         ? parsed.questions.map((q) => String(q)).slice(0, 3)
         : [],
-      suggestedKrs,
+      suggestedKrs: unique,
       warnings: parsed.warnings?.map((w) => String(w)) ?? [],
     };
   } catch (err: any) {

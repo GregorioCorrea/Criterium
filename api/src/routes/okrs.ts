@@ -35,6 +35,12 @@ router.delete("/:okrId", async (req, res, next) => {
     if (!info) {
       return res.status(404).json({ error: "okr_not_found" });
     }
+    console.log("[okrs] delete", {
+      okrId,
+      tenantId: req.tenantId,
+      krCount: info.krCount,
+      checkinsCount: info.checkinsCount,
+    });
     await deleteOkrCascade(req.tenantId!, okrId);
     res.json({ ok: true, deleted: info });
   } catch (err) {
