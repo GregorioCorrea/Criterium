@@ -44,7 +44,7 @@ router.post("/", async (req, res) => {
 });
 
 router.post("/with-krs", async (req, res) => {
-  const { objective, fromDate, toDate, krs, validation } = req.body ?? {};
+  const { objective, fromDate, toDate, krs, validation, allowHigh } = req.body ?? {};
   if (!objective || !fromDate || !toDate || !Array.isArray(krs)) {
     return res.status(400).json({ error: "missing_fields" });
   }
@@ -81,7 +81,11 @@ router.post("/with-krs", async (req, res) => {
   }
 
   const hasHigh = appliedValidation.issues?.some((i: { severity?: string }) => i.severity === "high");
-  if (hasHigh) {
+  console.log("[ai] okr create validation", {
+    hasHigh,
+    allowHigh: !!allowHigh,
+  });
+  if (hasHigh && !allowHigh) {
     return res.status(400).json({ error: "ai_validation_failed", issues: appliedValidation.issues });
   }
 

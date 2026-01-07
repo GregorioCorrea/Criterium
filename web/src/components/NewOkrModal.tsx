@@ -201,7 +201,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (allowHigh?: boolean) => {
     setErr(null);
     if (!lastValidationKey || lastValidationKey !== validationKey) {
       setErr("Revalida el OKR antes de crear, hubo cambios desde la ultima validacion.");
@@ -213,7 +213,10 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     }
     setBusy(true);
     try {
-      console.log("[okr] create request", { fingerprint: lastValidationFingerprint });
+      console.log("[okr] create request", {
+        fingerprint: lastValidationFingerprint,
+        allowHigh: !!allowHigh,
+      });
       const res = await apiPost<{ okr: { id: string } }>("/okrs/with-krs", {
         objective,
         fromDate,
@@ -223,6 +226,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
           fingerprint: lastValidationFingerprint,
           issues,
         },
+        allowHigh: !!allowHigh,
       });
       console.log("[okr] create response", { okrId: res.okr.id });
       onCreated(res.okr.id);
@@ -615,7 +619,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
                   const ok = window.confirm("Hay issues HIGH. Queres crear el OKR igual?");
                   if (!ok) return;
                 }
-                handleCreate();
+                handleCreate(hasHigh);
               }}
             >
               {busy ? "Creando..." : "Crear OKR"}
