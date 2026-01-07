@@ -140,6 +140,8 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     setBusy(true);
     try {
       const res = await apiPost<DraftResponse>("/ai/okr/draft", draftPayload());
+      const needsQuestions =
+        (res.questions?.length ?? 0) > 0 && answers.every((a) => !a.trim());
       const noSuggestions = res.suggestedKrs.length === 0;
       if (res.warnings?.includes("ai_unavailable")) {
         setErr("La IA no esta disponible ahora. Proba nuevamente en unos minutos.");
@@ -149,6 +151,14 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
       }
       setDraft(res);
       setQuestions(res.questions ?? []);
+      if (needsQuestions) {
+        setAnswers((prev) => {
+          const next = [...prev];
+          while (next.length < (res.questions?.length ?? 0)) next.push("");
+          return next.slice(0, res.questions?.length ?? 0);
+        });
+        return;
+      }
       const incoming = res.suggestedKrs.map((kr) => ({
         title: kr.title,
         metricName: kr.metricName ?? "",
@@ -431,162 +441,202 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
-        <h3>Propuesta IA</h3>
-        {draft?.warnings?.length ? (
-          <div style={{ color: "#a6adbb" }}>
-            {draft.warnings
-              .map((w) => (w === "ai_unavailable" ? "IA no disponible" : w))
-              .join(" - ")}
-          </div>
-        ) : null}
-        {questions.length > 0 && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontWeight: 600 }}>Preguntas para ajustar contexto</div>
-            {questions.map((q, idx) => (
-              <label key={idx}>
-                {q}
-                <input
-                  value={answers[idx] ?? ""}
-                  onChange={(e) => {
-                    const next = [...answers];
-                    next[idx] = e.target.value;
-                    setAnswers(next);
+        <details open>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Propuesta IA</summary>
+          <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+            {draft?.warnings?.length ? (
+              <div style={{ color: "#a6adbb" }}>
+                {draft.warnings
+                  .map((w) => (w === "ai_unavailable" ? "IA no disponible" : w))
+                  .join(" - ")}
+              </div>
+            ) : null}
+            {questions.length > 0 && (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ fontWeight: 600 }}>Preguntas para ajustar contexto</div>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 8,
+                    gridTemplateColumns: "1.5fr 1fr",
+                    fontWeight: 600,
+                    color: "var(--muted)",
                   }}
-                />
-              </label>
-            ))}
+                >
+                  <div>Pregunta</div>
+                  <div>Respuesta</div>
+                </div>
+                {questions.map((q, idx) => (
+                  <div
+                    key={idx}
+                    style={{ display: "grid", gap: 8, gridTemplateColumns: "1.5fr 1fr" }}
+                  >
+                    <div>{q}</div>
+                    <input
+                      value={answers[idx] ?? ""}
+                      onChange={(e) => {
+                        const next = [...answers];
+                        next[idx] = e.target.value;
+                        setAnswers(next);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              {canProposeMore && (
+                <button
+                  disabled={busy || (questions.length > 0 && hasQuestionGaps)}
+                  onClick={() => {
+                    if (questions.length > 0 && hasQuestionGaps) {
+                      setErr("Responde las preguntas para continuar con la propuesta.");
+                      return;
+                    }
+                    handleDraft();
+                  }}
+                >
+                  {busy
+                    ? "Analizando..."
+                    : questions.length > 0
+                      ? hasKrs
+                        ? "Proponer otros KR"
+                        : "Proponer KR"
+                      : "Generar preguntas"}
+                </button>
+              )}
+              <button disabled={busy} onClick={handleValidate}>
+                {busy ? "Validando..." : "Validar con IA"}
+              </button>
+            </div>
           </div>
-        )}
-        <div style={{ display: "flex", gap: 8 }}>
-          {canProposeMore && (
-            <button
-              disabled={busy || (questions.length > 0 && hasQuestionGaps)}
-              onClick={() => {
-                if (questions.length > 0 && hasQuestionGaps) {
-                  setErr("Responde las preguntas para continuar con la propuesta.");
-                  return;
-                }
-                handleDraft();
+        </details>
+
+        <details open>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>KRs propuestos y actuales</summary>
+          <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+            {krs.length === 0 && (
+              <div style={{ color: "#a6adbb" }}>
+                No hay KRs cargados. Agrega al menos uno para validar.
+              </div>
+            )}
+            <div
+              style={{
+                display: "grid",
+                gap: 8,
+                gridTemplateColumns: "2fr 1fr 1fr 1fr auto",
+                fontWeight: 600,
+                color: "var(--muted)",
               }}
             >
-              {busy
-                ? "Analizando..."
-                : questions.length > 0
-                  ? hasKrs
-                    ? "Proponer otros KR"
-                    : "Proponer KR"
-                  : "Generar preguntas"}
-            </button>
-          )}
-          <button disabled={busy} onClick={handleValidate}>
-            {busy ? "Validando..." : "Validar con IA"}
-          </button>
-        </div>
-
-        <h3>KRs actuales</h3>
-        {krs.length === 0 && (
-          <div style={{ color: "#a6adbb" }}>
-            No hay KRs cargados. Agrega al menos uno para validar.
-          </div>
-        )}
-        {krs.map((kr, idx) => (
-          <div
-            key={idx}
-            style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr" }}
-          >
-            <input
-              placeholder="Titulo"
-              value={kr.title}
-              onChange={(e) => {
-                const next = [...krs];
-                next[idx].title = e.target.value;
-                setKrs(next);
-              }}
-            />
-            <input
-              placeholder="Metrica"
-              value={kr.metricName}
-              onChange={(e) => {
-                const next = [...krs];
-                next[idx].metricName = e.target.value;
-                setKrs(next);
-              }}
-            />
-            <input
-              placeholder="Unidad"
-              value={kr.unit}
-              onChange={(e) => {
-                const next = [...krs];
-                next[idx].unit = e.target.value;
-                setKrs(next);
-              }}
-            />
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                placeholder="Target"
-                value={kr.targetValue}
-                onChange={(e) => {
-                  const next = [...krs];
-                  next[idx].targetValue = e.target.value;
-                  setKrs(next);
-                }}
-              />
-              <button
-                title="Eliminar"
-                onClick={() => {
-                  const next = [...krs];
-                  next.splice(idx, 1);
-                  setKrs(next);
-                }}
-              >
-                Eliminar
-              </button>
+              <div>Titulo</div>
+              <div>Metrica</div>
+              <div>Unidad</div>
+              <div>Target</div>
+              <div>Acciones</div>
             </div>
-          </div>
-        ))}
-        <div>
-          <button
-            onClick={() =>
-              setKrs([...krs, { title: "", metricName: "", unit: "", targetValue: "" }])
-            }
-          >
-            Agregar KR
-          </button>
-        </div>
-
-        <h3>Validacion</h3>
-        {validationStale && (
-          <div style={{ color: "#f5b4b4" }}>Cambios realizados, es necesario revalidar.</div>
-        )}
-        {issues.length === 0 && <div>Sin issues.</div>}
-        {issues.map((i, idx) => (
-          <div key={idx} style={{ border: "1px solid #2a3440", padding: 8, borderRadius: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <div>
-                <b>{i.severity.toUpperCase()}</b> - {i.message}
-                {i.fixSuggestion && <div>Recomendacion: {i.fixSuggestion}</div>}
+            {krs.map((kr, idx) => (
+              <div
+                key={idx}
+                style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr auto" }}
+              >
+                <input
+                  value={kr.title}
+                  onChange={(e) => {
+                    const next = [...krs];
+                    next[idx].title = e.target.value;
+                    setKrs(next);
+                  }}
+                />
+                <input
+                  value={kr.metricName}
+                  onChange={(e) => {
+                    const next = [...krs];
+                    next[idx].metricName = e.target.value;
+                    setKrs(next);
+                  }}
+                />
+                <input
+                  value={kr.unit}
+                  onChange={(e) => {
+                    const next = [...krs];
+                    next[idx].unit = e.target.value;
+                    setKrs(next);
+                  }}
+                />
+                <input
+                  value={kr.targetValue}
+                  onChange={(e) => {
+                    const next = [...krs];
+                    next[idx].targetValue = e.target.value;
+                    setKrs(next);
+                  }}
+                />
+                <button
+                  title="Eliminar"
+                  onClick={() => {
+                    const next = [...krs];
+                    next.splice(idx, 1);
+                    setKrs(next);
+                  }}
+                >
+                  Eliminar
+                </button>
               </div>
+            ))}
+            <div>
               <button
-                disabled={busy}
-                onClick={async () => {
-                  setFixingIssue(i.code || "issue");
-                  setErr(null);
-                  try {
-                    await handleFixIssues([i]);
-                  } finally {
-                    setFixingIssue(null);
-                  }
-                }}
+                onClick={() =>
+                  setKrs([...krs, { title: "", metricName: "", unit: "", targetValue: "" }])
+                }
               >
-                {fixingIssue === i.code ? "Corrigiendo..." : "Corregir"}
+                Agregar KR
               </button>
             </div>
           </div>
-        ))}
-        {notes.length > 0 && <div style={{ color: "#a6adbb" }}>Notas IA: {notes.join(" - ")}</div>}
-        {hasHigh && (
-          <div style={{ color: "#f5b4b4" }}>Hay issues high. Podes corregirlos o continuar igual.</div>
-        )}
+        </details>
+
+        <details open>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Validación</summary>
+          <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+            {validationStale && (
+              <div style={{ color: "#f5b4b4" }}>Cambios realizados, es necesario revalidar.</div>
+            )}
+            {issues.length === 0 && <div>Sin issues.</div>}
+            {issues.map((i, idx) => (
+              <div key={idx} style={{ border: "1px solid #2a3440", padding: 8, borderRadius: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    <b>{i.severity.toUpperCase()}</b> - {i.message}
+                    {i.fixSuggestion && <div>Recomendacion: {i.fixSuggestion}</div>}
+                  </div>
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      setFixingIssue(i.code || "issue");
+                      setErr(null);
+                      try {
+                        await handleFixIssues([i]);
+                      } finally {
+                        setFixingIssue(null);
+                      }
+                    }}
+                  >
+                    {fixingIssue === i.code ? "Corrigiendo..." : "Corregir"}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {notes.length > 0 && (
+              <div style={{ color: "#a6adbb" }}>Notas IA: {notes.join(" - ")}</div>
+            )}
+            {hasHigh && (
+              <div style={{ color: "#f5b4b4" }}>
+                Hay issues high. Podes corregirlos o continuar igual.
+              </div>
+            )}
+          </div>
+        </details>
       </div>
       <div className="sticky-actions">
         {hasHigh && (
