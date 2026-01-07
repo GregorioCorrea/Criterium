@@ -103,6 +103,17 @@ export default function OkrDetail() {
   const [aiBusy, setAiBusy] = useState(false);
   const aiHasGaps = aiQuestions.some((_, idx) => !aiAnswers[idx]?.trim());
   const aiReadyForSuggestions = aiQuestions.length === 0 || !aiHasGaps;
+  const [aiAddedTitles, setAiAddedTitles] = useState<string[]>([]);
+  const [aiAddError, setAiAddError] = useState<{
+    kr: AiDraftResponse["suggestedKrs"][number];
+    issues: { severity: string; message: string; fixSuggestion?: string }[];
+  } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: "okr" | "kr";
+    okrId?: string;
+    krId?: string;
+    message: string;
+  } | null>(null);
 
   const krDirty =
     krForm.title.trim().length > 0 ||
@@ -174,12 +185,7 @@ export default function OkrDetail() {
           : "No hay check-ins asociados.",
         "Esta accion no se puede deshacer. Continuar?",
       ].join(" ");
-      const ok = window.confirm(message);
-      if (!ok) return;
-      console.log("[okr] delete request", { okrId });
-      await apiDelete<{ ok: boolean }>(`/okrs/${okrId}`);
-      console.log("[okr] delete response", { okrId });
-      window.location.href = "/";
+      setDeleteConfirm({ type: "okr", okrId, message });
     } catch (e: any) {
       setErr(formatApiError(e.message));
     }
@@ -199,12 +205,7 @@ export default function OkrDetail() {
           : "No hay check-ins asociados.",
         "Esta accion no se puede deshacer. Continuar?",
       ].join(" ");
-      const ok = window.confirm(message);
-      if (!ok) return;
-      console.log("[kr] delete request", { krId });
-      await apiDelete<{ ok: boolean }>(`/krs/${krId}`);
-      console.log("[kr] delete response", { krId });
-      load();
+      setDeleteConfirm({ type: "kr", krId, message });
     } catch (e: any) {
       setErr(formatApiError(e.message));
     }
@@ -342,6 +343,44 @@ export default function OkrDetail() {
           <button onClick={() => setShowCheckinModal(true)}>Registrar check-in</button>
         </div>
 
+        {deleteConfirm && (
+          <Modal title="Confirmar borrado" onClose={() => setDeleteConfirm(null)}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>{deleteConfirm.message}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setDeleteConfirm(null)}>Cancelar</button>
+                <button
+                  onClick={async () => {
+                    try {
+                      if (deleteConfirm.type === "okr" && deleteConfirm.okrId) {
+                        console.log("[okr] delete request", { okrId: deleteConfirm.okrId });
+                        await apiDelete<{ ok: boolean }>(`/okrs/${deleteConfirm.okrId}`);
+                        console.log("[okr] delete response", { okrId: deleteConfirm.okrId });
+                        window.location.href = "/";
+                        return;
+                      }
+                      if (deleteConfirm.type === "kr" && deleteConfirm.krId) {
+                        console.log("[kr] delete request", { krId: deleteConfirm.krId });
+                        await apiDelete<{ ok: boolean }>(`/krs/${deleteConfirm.krId}`);
+                        console.log("[kr] delete response", { krId: deleteConfirm.krId });
+                        setDeleteConfirm(null);
+                        load();
+                        return;
+                      }
+                      setDeleteConfirm(null);
+                    } catch (e: any) {
+                      setErr(formatApiError(e.message));
+                      setDeleteConfirm(null);
+                    }
+                  }}
+                >
+                  Borrar
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
         {showKrModal && (
           <Modal title="Agregar KR" onClose={() => setShowKrModal(false)} dirty={krDirty}>
             {krIssues.length > 0 && (
@@ -466,6 +505,46 @@ export default function OkrDetail() {
               >
                 {aiBusy ? "Analizando..." : aiQuestions.length > 0 ? "Proponer KRs" : "Generar preguntas"}
               </button>
+              {aiAddError && (
+                <div style={{ border: "1px solid var(--border)", padding: 8, borderRadius: 8 }}>
+                  <div style={{ marginBottom: 6 }}>
+                    <b>La IA marco issues para este KR:</b> {aiAddError.kr.title}
+                  </div>
+                  <div style={{ display: "grid", gap: 4 }}>
+                    {aiAddError.issues.map((i, idx) => (
+                      <div key={idx}>
+                        <b>{i.severity.toUpperCase()}</b> {i.message}
+                        {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => setAiAddError(null)}>Cancelar</button>
+                    <button
+                      onClick={async () => {
+                        if (!okrId) return;
+                        try {
+                          await apiPost(`/krs`, {
+                            okrId,
+                            title: aiAddError.kr.title,
+                            metricName: aiAddError.kr.metricName ?? null,
+                            unit: aiAddError.kr.unit ?? null,
+                            targetValue: aiAddError.kr.targetValue,
+                            allowHigh: true,
+                          });
+                          setAiAddedTitles((prev) => [...prev, aiAddError.kr.title.toLowerCase()]);
+                          setAiAddError(null);
+                          load();
+                        } catch (e: any) {
+                          setErr(formatApiError(e.message));
+                        }
+                      }}
+                    >
+                      Agregar igual
+                    </button>
+                  </div>
+                </div>
+              )}
               {aiDraft?.suggestedKrs?.length ? (
                 <div style={{ display: "grid", gap: 8 }}>
                   {aiDraft.suggestedKrs.map((kr, idx) => (
@@ -481,6 +560,10 @@ export default function OkrDetail() {
                         onClick={async () => {
                           if (!okrId) return;
                           try {
+                            const normalized = kr.title.toLowerCase();
+                            if (aiAddedTitles.includes(normalized)) {
+                              return;
+                            }
                             await apiPost(`/krs`, {
                               okrId,
                               title: kr.title,
@@ -494,13 +577,27 @@ export default function OkrDetail() {
                               next.splice(idx, 1);
                               return { ...prev, suggestedKrs: next };
                             });
+                            setAiAddedTitles((prev) => [...prev, normalized]);
                             load();
                           } catch (e: any) {
-                            setErr(formatApiError(e.message));
+                            const raw = String(e?.message || "");
+                            try {
+                              const parsed = JSON.parse(raw.replace(/^API \d+:\s*/i, ""));
+                              if (parsed?.error === "ai_validation_failed" && parsed?.issues) {
+                                setAiAddError({
+                                  kr,
+                                  issues: parsed.issues,
+                                });
+                                return;
+                              }
+                            } catch {
+                              // ignore parse errors
+                            }
+                            setErr(formatApiError(raw));
                           }
                         }}
                       >
-                        Agregar
+                        {aiAddedTitles.includes(kr.title.toLowerCase()) ? "Agregado" : "Agregar"}
                       </button>
                     </div>
                   ))}

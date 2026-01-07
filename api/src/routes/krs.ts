@@ -33,7 +33,7 @@ router.get("/:okrId", async (req, res, next) => {
 // POST /krs -> crea KR
 router.post("/", async (req, res, next) => {
   try {
-    const { okrId, title, metricName, targetValue, unit } = req.body ?? {};
+    const { okrId, title, metricName, targetValue, unit, allowHigh } = req.body ?? {};
 
     if (!okrId || !title) {
       return res.status(400).json({ error: "okrId y title son obligatorios" });
@@ -56,7 +56,11 @@ router.post("/", async (req, res, next) => {
       validation = ruleValidateKr({ title, targetValue: Number(targetValue) });
     }
     const hasHigh = validation.issues?.some((i) => i.severity === "high");
-    if (hasHigh) {
+    console.log("[krs] create validation", {
+      hasHigh,
+      allowHigh: !!allowHigh,
+    });
+    if (hasHigh && !allowHigh) {
       return res.status(400).json({ error: "ai_validation_failed", issues: validation.issues });
     }
 
