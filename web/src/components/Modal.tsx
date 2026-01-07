@@ -36,12 +36,12 @@ export default function Modal({ title, onClose, children, dirty }: Props) {
         <div className="modal-header">
           <div className="modal-title">{title ?? ""}</div>
           <button className="modal-close" onClick={onClose} aria-label="Cerrar">
-            ×
+            x
           </button>
         </div>
         <div className="modal-body">{children}</div>
         {confirmClose && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #2a3440" }}>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
             <div style={{ marginBottom: 8 }}>Hay datos sin guardar.</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setConfirmClose(false)}>Volver</button>

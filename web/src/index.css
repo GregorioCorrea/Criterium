@@ -2,7 +2,7 @@
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light dark;
   --bg: #0b0f14;
   --panel: #131a22;
   --text: #e6e6e6;
@@ -32,6 +32,18 @@ body {
 }
 
 #root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.page {
+  padding: 16px;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+.page-content {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
@@ -125,7 +137,9 @@ button:hover {
 }
 
 .modal-panel {
-  width: min(900px, 92vw);
+  width: min(760px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;

@@ -139,56 +139,49 @@ export default function OkrDetail() {
   );
 
   return (
-    <div
-      style={{
-        padding: 16,
-        fontFamily: "system-ui",
-        color: "#e6e6e6",
-        background: "#0b0f14",
-        minHeight: "100vh",
-      }}
-    >
-      <div style={{ marginBottom: 12 }}>
-        <Link to="/">{"<"} Volver</Link>
-      </div>
+    <div className="page">
+      <div className="page-content">
+        <div style={{ marginBottom: 12 }}>
+          <Link to="/">{"<"} Volver</Link>
+        </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <h2>{data.objective}</h2>
-        <AiStatus />
-      </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <h2>{data.objective}</h2>
+          <AiStatus />
+        </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div>
-          <b>Fechas:</b> {data.fromDate} - {data.toDate}
+        <div style={{ marginBottom: 16 }}>
+          <div>
+            <b>Fechas:</b> {data.fromDate} - {data.toDate}
+          </div>
+          <div>
+            <b>Status:</b> {data.status}
+          </div>
+          <div>
+            <b>Estado:</b> {formatHealth(data.summary?.overallHealth)}
+          </div>
+          <div>
+            <b>Progreso promedio:</b> {data.summary?.avgProgressPct ?? "-"}%
+          </div>
+          <div>
+            <b>KRs:</b> {data.summary?.krCount ?? 0}
+          </div>
         </div>
-        <div>
-          <b>Status:</b> {data.status}
-        </div>
-        <div>
-          <b>Estado:</b> {formatHealth(data.summary?.overallHealth)}
-        </div>
-        <div>
-          <b>Progreso promedio:</b> {data.summary?.avgProgressPct ?? "-"}%
-        </div>
-        <div>
-          <b>KRs:</b> {data.summary?.krCount ?? 0}
-        </div>
-      </div>
 
-      <div style={{ marginBottom: 16, padding: 12, border: "1px solid #eee" }}>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>Estado y recomendacion</div>
-        <div>
-          {data.insights?.explanationLong ??
-            data.insights?.explanationShort ??
-            "Sin informacion"}
+        <div style={{ marginBottom: 16, padding: 12, border: "1px solid var(--border)" }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Estado y recomendacion</div>
+          <div>
+            {data.insights?.explanationLong ??
+              data.insights?.explanationShort ??
+              "Sin informacion"}
+          </div>
+          <div>
+            <b>Siguiente:</b> {data.insights?.suggestion ?? "-"}
+          </div>
         </div>
-        <div>
-          <b>Siguiente:</b> {data.insights?.suggestion ?? "-"}
-        </div>
-      </div>
 
-      <h3>Key Results</h3>
-      <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
+        <h3>Key Results</h3>
+        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
             <th>Titulo</th>
@@ -226,143 +219,144 @@ export default function OkrDetail() {
         </tbody>
       </table>
 
-      <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
-        <button onClick={() => setShowKrModal(true)}>Agregar KR</button>
-        <button onClick={() => setShowCheckinModal(true)}>Registrar check-in</button>
-      </div>
+        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
+          <button onClick={() => setShowKrModal(true)}>Agregar KR</button>
+          <button onClick={() => setShowCheckinModal(true)}>Registrar check-in</button>
+        </div>
 
-      {showKrModal && (
-        <Modal title="Agregar KR" onClose={() => setShowKrModal(false)} dirty={krDirty}>
-          {krIssues.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              {krIssues.map((i, idx) => (
-                <div key={idx}>
-                  <b>{i.severity.toUpperCase()}</b> {i.message}
-                  {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
-                </div>
-              ))}
+        {showKrModal && (
+          <Modal title="Agregar KR" onClose={() => setShowKrModal(false)} dirty={krDirty}>
+            {krIssues.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                {krIssues.map((i, idx) => (
+                  <div key={idx}>
+                    <b>{i.severity.toUpperCase()}</b> {i.message}
+                    {i.fixSuggestion ? ` (${i.fixSuggestion})` : ""}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
+              <input
+                placeholder="Titulo"
+                value={krForm.title}
+                onChange={(e) => setKrForm({ ...krForm, title: e.target.value })}
+              />
+              <input
+                placeholder="Metrica"
+                value={krForm.metricName}
+                onChange={(e) => setKrForm({ ...krForm, metricName: e.target.value })}
+              />
+              <input
+                placeholder="Unidad"
+                value={krForm.unit}
+                onChange={(e) => setKrForm({ ...krForm, unit: e.target.value })}
+              />
+              <input
+                placeholder="Target"
+                value={krForm.targetValue}
+                onChange={(e) => setKrForm({ ...krForm, targetValue: e.target.value })}
+              />
             </div>
-          )}
-          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
-            <input
-              placeholder="Titulo"
-              value={krForm.title}
-              onChange={(e) => setKrForm({ ...krForm, title: e.target.value })}
-            />
-            <input
-              placeholder="Metrica"
-              value={krForm.metricName}
-              onChange={(e) => setKrForm({ ...krForm, metricName: e.target.value })}
-            />
-            <input
-              placeholder="Unidad"
-              value={krForm.unit}
-              onChange={(e) => setKrForm({ ...krForm, unit: e.target.value })}
-            />
-            <input
-              placeholder="Target"
-              value={krForm.targetValue}
-              onChange={(e) => setKrForm({ ...krForm, targetValue: e.target.value })}
-            />
-          </div>
-          <button
-            disabled={busy}
-            onClick={async () => {
-              if (!okrId) return;
-              setBusy(true);
-              setKrIssues([]);
-              try {
-                const validation = await apiPost<{ issues: any[]; suggestedTargetValue?: number }>(
-                  "/ai/kr/validate",
-                  {
+            <button
+              disabled={busy}
+              onClick={async () => {
+                if (!okrId) return;
+                setBusy(true);
+                setKrIssues([]);
+                try {
+                  const validation = await apiPost<{ issues: any[]; suggestedTargetValue?: number }>(
+                    "/ai/kr/validate",
+                    {
+                      title: krForm.title,
+                      metricName: krForm.metricName || null,
+                      unit: krForm.unit || null,
+                      targetValue: krForm.targetValue ? Number(krForm.targetValue) : null,
+                    }
+                  );
+                  setKrIssues(validation.issues || []);
+                  const hasHigh = (validation.issues || []).some((i) => i.severity === "high");
+                  if (hasHigh) {
+                    setBusy(false);
+                    return;
+                  }
+                  await apiPost(`/krs`, {
+                    okrId,
                     title: krForm.title,
                     metricName: krForm.metricName || null,
                     unit: krForm.unit || null,
-                    targetValue: krForm.targetValue ? Number(krForm.targetValue) : null,
-                  }
-                );
-                setKrIssues(validation.issues || []);
-                const hasHigh = (validation.issues || []).some((i) => i.severity === "high");
-                if (hasHigh) {
+                    targetValue: Number(krForm.targetValue),
+                  });
+                  setKrForm({ title: "", metricName: "", unit: "", targetValue: "" });
+                  setShowKrModal(false);
+                  load();
+                } catch (e: any) {
+                  setErr(formatApiError(e.message));
+                } finally {
                   setBusy(false);
-                  return;
                 }
-                await apiPost(`/krs`, {
-                  okrId,
-                  title: krForm.title,
-                  metricName: krForm.metricName || null,
-                  unit: krForm.unit || null,
-                  targetValue: Number(krForm.targetValue),
-                });
-                setKrForm({ title: "", metricName: "", unit: "", targetValue: "" });
-                setShowKrModal(false);
-                load();
-              } catch (e: any) {
-                setErr(formatApiError(e.message));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? "Guardando..." : "Guardar KR"}
-          </button>
-        </Modal>
-      )}
-
-      {showCheckinModal && (
-        <Modal title="Registrar check-in" onClose={() => setShowCheckinModal(false)} dirty={checkinDirty}>
-          {selectableKrs.length === 0 && (
-            <div style={{ color: "#a6adbb", marginBottom: 8 }}>
-              Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
-            </div>
-          )}
-          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 2fr" }}>
-            <select
-              value={checkinForm.krId}
-              onChange={(e) => setCheckinForm({ ...checkinForm, krId: e.target.value })}
+              }}
             >
-              <option value="">Elegi un KR</option>
-              {selectableKrs.map((kr) => (
-                <option key={kr.id} value={kr.id}>
-                  {kr.title}
-                </option>
-              ))}
-            </select>
-            <input
-              placeholder="Valor actual"
-              value={checkinForm.value}
-              onChange={(e) => setCheckinForm({ ...checkinForm, value: e.target.value })}
-            />
-            <input
-              placeholder="Comentario (opcional)"
-              value={checkinForm.comment}
-              onChange={(e) => setCheckinForm({ ...checkinForm, comment: e.target.value })}
-            />
-          </div>
-          <button
-            disabled={busy || selectableKrs.length === 0}
-            onClick={async () => {
-              if (!checkinForm.krId) return;
-              setBusy(true);
-              try {
-                await apiPost(`/krs/${checkinForm.krId}/checkins`, {
-                  value: Number(checkinForm.value),
-                  comment: checkinForm.comment || null,
-                });
-                setCheckinForm({ krId: "", value: "", comment: "" });
-                setShowCheckinModal(false);
-                load();
-              } catch (e: any) {
-                setErr(formatApiError(e.message));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? "Registrando..." : "Guardar check-in"}
-          </button>
-        </Modal>
-      )}
+              {busy ? "Guardando..." : "Guardar KR"}
+            </button>
+          </Modal>
+        )}
+
+        {showCheckinModal && (
+          <Modal title="Registrar check-in" onClose={() => setShowCheckinModal(false)} dirty={checkinDirty}>
+            {selectableKrs.length === 0 && (
+              <div style={{ color: "#a6adbb", marginBottom: 8 }}>
+                Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
+              </div>
+            )}
+            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 2fr" }}>
+              <select
+                value={checkinForm.krId}
+                onChange={(e) => setCheckinForm({ ...checkinForm, krId: e.target.value })}
+              >
+                <option value="">Elegi un KR</option>
+                {selectableKrs.map((kr) => (
+                  <option key={kr.id} value={kr.id}>
+                    {kr.title}
+                  </option>
+                ))}
+              </select>
+              <input
+                placeholder="Valor actual"
+                value={checkinForm.value}
+                onChange={(e) => setCheckinForm({ ...checkinForm, value: e.target.value })}
+              />
+              <input
+                placeholder="Comentario (opcional)"
+                value={checkinForm.comment}
+                onChange={(e) => setCheckinForm({ ...checkinForm, comment: e.target.value })}
+              />
+            </div>
+            <button
+              disabled={busy || selectableKrs.length === 0}
+              onClick={async () => {
+                if (!checkinForm.krId) return;
+                setBusy(true);
+                try {
+                  await apiPost(`/krs/${checkinForm.krId}/checkins`, {
+                    value: Number(checkinForm.value),
+                    comment: checkinForm.comment || null,
+                  });
+                  setCheckinForm({ krId: "", value: "", comment: "" });
+                  setShowCheckinModal(false);
+                  load();
+                } catch (e: any) {
+                  setErr(formatApiError(e.message));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Registrando..." : "Guardar check-in"}
+            </button>
+          </Modal>
+        )}
+      </div>
     </div>
   );
 }

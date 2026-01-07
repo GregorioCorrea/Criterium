@@ -55,15 +55,8 @@ export default function Board() {
   if (err) return <pre>{err}</pre>;
 
   return (
-    <div
-      style={{
-        padding: 16,
-        fontFamily: "system-ui",
-        color: "#e6e6e6",
-        background: "#0b0f14",
-        minHeight: "100vh",
-      }}
-    >
+    <div className="page">
+      <div className="page-content">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <h2>Criterium OKRs</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -71,7 +64,7 @@ export default function Board() {
             <button onClick={() => setShowNew(true)}>Nuevo OKR</button>
           </div>
         </div>
-      <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
+        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
             <th>Objetivo</th>
@@ -105,6 +98,7 @@ export default function Board() {
           onCreated={(okrId) => navigate(`/okr/${okrId}`)}
         />
       )}
+      </div>
     </div>
   );
 }

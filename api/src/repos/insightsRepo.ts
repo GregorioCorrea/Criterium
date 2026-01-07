@@ -74,6 +74,7 @@ export async function upsertKrInsights(input: {
       CONVERT(varchar(19), inserted.computed_at, 120) as computedAt,
       inserted.source as source,
       inserted.version as version
+    ;
     `,
     {
       tenantId: input.tenantId,
@@ -136,6 +137,7 @@ export async function upsertOkrInsights(input: {
       CONVERT(varchar(19), inserted.computed_at, 120) as computedAt,
       inserted.source as source,
       inserted.version as version
+    ;
     `,
     {
       tenantId: input.tenantId,
