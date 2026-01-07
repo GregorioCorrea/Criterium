@@ -7,6 +7,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   console.log("TEAMS TOKEN:", token);
 
   const res = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -25,6 +26,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -44,6 +46,7 @@ export async function apiDelete<T>(path: string): Promise<T> {
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

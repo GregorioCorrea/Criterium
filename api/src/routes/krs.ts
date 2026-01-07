@@ -153,6 +153,7 @@ router.get("/:krId/delete-info", async (req, res, next) => {
     if (!info) {
       return res.status(404).json({ error: "kr_not_found" });
     }
+    res.set("Cache-Control", "no-store");
     res.json(info);
   } catch (err) {
     next(err);

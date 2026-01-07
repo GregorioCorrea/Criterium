@@ -25,6 +25,7 @@ router.get("/:okrId/delete-info", async (req, res) => {
   if (!info) {
     return res.status(404).json({ error: "okr_not_found" });
   }
+  res.set("Cache-Control", "no-store");
   res.json(info);
 });
 
