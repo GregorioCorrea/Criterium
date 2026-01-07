@@ -3,7 +3,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireTenant } from "../middleware/tenantContext";
 import { listOkrsWithSummary } from "../repos/okrBoardRepo";
 import { getOkrDetail } from "../repos/okrDetailRepo";
-import { createOkr } from "../repos/okrRepo";
+import { createOkr, deleteOkrCascade, getOkrDeleteInfo } from "../repos/okrRepo";
 import { getOkrInsightsByOkrId } from "../repos/insightsRepo";
 import { ensureInitialOkrInsights, recomputeKrAndOkrInsights } from "../services/insights";
 import { createKr } from "../repos/krRepo";
@@ -17,6 +17,29 @@ router.use(requireAuth, requireTenant);
 router.get("/", async (req, res) => {
   const okrs = await listOkrsWithSummary(req.tenantId!);
   res.json(okrs);
+});
+
+router.get("/:okrId/delete-info", async (req, res) => {
+  const okrId = req.params.okrId;
+  const info = await getOkrDeleteInfo(req.tenantId!, okrId);
+  if (!info) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
+  res.json(info);
+});
+
+router.delete("/:okrId", async (req, res, next) => {
+  const okrId = req.params.okrId;
+  try {
+    const info = await getOkrDeleteInfo(req.tenantId!, okrId);
+    if (!info) {
+      return res.status(404).json({ error: "okr_not_found" });
+    }
+    await deleteOkrCascade(req.tenantId!, okrId);
+    res.json({ ok: true, deleted: info });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/:okrId", async (req, res) => {

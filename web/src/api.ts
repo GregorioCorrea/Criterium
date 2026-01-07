@@ -38,3 +38,21 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   }
   return res.json();
 }
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const token = await getTeamsToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+  return res.json();
+}

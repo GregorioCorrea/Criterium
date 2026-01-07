@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { apiGet, apiPost } from "../api";
+import { apiDelete, apiGet, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
 import Modal from "../components/Modal";
 
@@ -45,6 +45,18 @@ type OkrDetail = {
   krs: Kr[];
 };
 
+type AiDraftResponse = {
+  objectiveRefined: string | null;
+  questions: string[];
+  suggestedKrs: Array<{
+    title: string;
+    metricName: string | null;
+    unit: string | null;
+    targetValue: number;
+  }>;
+  warnings?: string[];
+};
+
 function formatHealth(value: string | null | undefined): string {
   switch (value) {
     case "no_target":
@@ -83,6 +95,12 @@ export default function OkrDetail() {
   });
   const [showKrModal, setShowKrModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
+  const [showAiKrModal, setShowAiKrModal] = useState(false);
+  const [aiContext, setAiContext] = useState("");
+  const [aiDraft, setAiDraft] = useState<AiDraftResponse | null>(null);
+  const [aiQuestions, setAiQuestions] = useState<string[]>([]);
+  const [aiAnswers, setAiAnswers] = useState<string[]>(["", "", ""]);
+  const [aiBusy, setAiBusy] = useState(false);
 
   const krDirty =
     krForm.title.trim().length > 0 ||
@@ -138,6 +156,78 @@ export default function OkrDetail() {
     (kr) => kr.progressPct === null || kr.progressPct < 100
   );
 
+  const handleDeleteOkr = async () => {
+    if (!okrId) return;
+    try {
+      const info = await apiGet<{ okrId: string; krCount: number; checkinsCount: number }>(
+        `/okrs/${okrId}/delete-info`
+      );
+      const message = [
+        "Vas a borrar este OKR.",
+        info.krCount > 0 ? `Incluye ${info.krCount} KR(s).` : "No tiene KRs.",
+        info.checkinsCount > 0
+          ? `Se eliminaran ${info.checkinsCount} check-in(s).`
+          : "No hay check-ins asociados.",
+        "Esta accion no se puede deshacer. Continuar?",
+      ].join(" ");
+      const ok = window.confirm(message);
+      if (!ok) return;
+      await apiDelete<{ ok: boolean }>(`/okrs/${okrId}`);
+      window.location.href = "/";
+    } catch (e: any) {
+      setErr(formatApiError(e.message));
+    }
+  };
+
+  const handleDeleteKr = async (krId: string) => {
+    try {
+      const info = await apiGet<{ krId: string; checkinsCount: number }>(
+        `/krs/${krId}/delete-info`
+      );
+      const message = [
+        "Vas a borrar este KR.",
+        info.checkinsCount > 0
+          ? `Se eliminaran ${info.checkinsCount} check-in(s).`
+          : "No hay check-ins asociados.",
+        "Esta accion no se puede deshacer. Continuar?",
+      ].join(" ");
+      const ok = window.confirm(message);
+      if (!ok) return;
+      await apiDelete<{ ok: boolean }>(`/krs/${krId}`);
+      load();
+    } catch (e: any) {
+      setErr(formatApiError(e.message));
+    }
+  };
+
+  const handleAiDraft = async () => {
+    setErr(null);
+    setAiBusy(true);
+    try {
+      const res = await apiPost<AiDraftResponse>("/ai/okr/draft", {
+        objective: data.objective,
+        fromDate: data.fromDate,
+        toDate: data.toDate,
+        context: aiContext,
+        existingKrTitles: data.krs.map((kr) => kr.title),
+        answers: aiAnswers,
+      });
+      setAiDraft(res);
+      setAiQuestions(res.questions ?? []);
+      if (res.questions?.length) {
+        setAiAnswers((prev) => {
+          const next = [...prev];
+          while (next.length < res.questions.length) next.push("");
+          return next.slice(0, res.questions.length);
+        });
+      }
+    } catch (e: any) {
+      setErr(formatApiError(e.message));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-content">
@@ -147,7 +237,10 @@ export default function OkrDetail() {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <h2>{data.objective}</h2>
-          <AiStatus />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <AiStatus />
+            <button onClick={handleDeleteOkr}>Eliminar OKR</button>
+          </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -191,6 +284,7 @@ export default function OkrDetail() {
             <th>Progreso</th>
             <th>Estado</th>
             <th>Estado y recomendacion</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -214,6 +308,9 @@ export default function OkrDetail() {
                   <b>Siguiente:</b> {kr.insights?.suggestion ?? "-"}
                 </div>
               </td>
+              <td>
+                <button onClick={() => handleDeleteKr(kr.id)}>Eliminar</button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -221,6 +318,7 @@ export default function OkrDetail() {
 
         <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
           <button onClick={() => setShowKrModal(true)}>Agregar KR</button>
+          <button onClick={() => setShowAiKrModal(true)}>Proponer KRs con IA</button>
           <button onClick={() => setShowCheckinModal(true)}>Registrar check-in</button>
         </div>
 
@@ -299,6 +397,97 @@ export default function OkrDetail() {
             >
               {busy ? "Guardando..." : "Guardar KR"}
             </button>
+          </Modal>
+        )}
+
+        {showAiKrModal && (
+          <Modal title="Proponer KRs con IA" onClose={() => setShowAiKrModal(false)} dirty={aiBusy}>
+            <div style={{ display: "grid", gap: 8 }}>
+              <div>
+                <b>Objetivo:</b> {data.objective}
+              </div>
+              <div>
+                <b>Fechas:</b> {data.fromDate} - {data.toDate}
+              </div>
+              <label>
+                Contexto (opcional)
+                <input value={aiContext} onChange={(e) => setAiContext(e.target.value)} />
+              </label>
+              {aiQuestions.length > 0 && (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ fontWeight: 600 }}>Preguntas para ajustar contexto</div>
+                  {aiQuestions.map((q, idx) => (
+                    <label key={idx}>
+                      {q}
+                      <input
+                        value={aiAnswers[idx] ?? ""}
+                        onChange={(e) => {
+                          const next = [...aiAnswers];
+                          next[idx] = e.target.value;
+                          setAiAnswers(next);
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+              {aiDraft?.warnings?.length ? (
+                <div style={{ color: "#a6adbb" }}>{aiDraft.warnings.join(" - ")}</div>
+              ) : null}
+              <button
+                disabled={aiBusy}
+                onClick={() => {
+                  const hasGaps = aiQuestions.some((_, idx) => !aiAnswers[idx]?.trim());
+                  if (aiQuestions.length > 0 && hasGaps) {
+                    setErr("Responde las preguntas para continuar con la propuesta.");
+                    return;
+                  }
+                  handleAiDraft();
+                }}
+              >
+                {aiBusy ? "Analizando..." : "Proponer KRs"}
+              </button>
+              {aiDraft?.suggestedKrs?.length ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {aiDraft.suggestedKrs.map((kr, idx) => (
+                    <div
+                      key={idx}
+                      style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr auto" }}
+                    >
+                      <input value={kr.title} readOnly />
+                      <input value={kr.metricName ?? ""} readOnly />
+                      <input value={kr.unit ?? ""} readOnly />
+                      <input value={String(kr.targetValue ?? "")} readOnly />
+                      <button
+                        onClick={async () => {
+                          if (!okrId) return;
+                          try {
+                            await apiPost(`/krs`, {
+                              okrId,
+                              title: kr.title,
+                              metricName: kr.metricName ?? null,
+                              unit: kr.unit ?? null,
+                              targetValue: kr.targetValue,
+                            });
+                            setAiDraft((prev) => {
+                              if (!prev) return prev;
+                              const next = [...prev.suggestedKrs];
+                              next.splice(idx, 1);
+                              return { ...prev, suggestedKrs: next };
+                            });
+                            load();
+                          } catch (e: any) {
+                            setErr(formatApiError(e.message));
+                          }
+                        }}
+                      >
+                        Agregar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </Modal>
         )}
 

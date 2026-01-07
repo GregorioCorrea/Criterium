@@ -1,5 +1,12 @@
 import { Router } from "express";
-import { createKr, getKrById, listKrsByOkr, updateKrCurrentValue } from "../repos/krRepo";
+import {
+  createKr,
+  deleteKrCascade,
+  getKrById,
+  getKrDeleteInfo,
+  listKrsByOkr,
+  updateKrCurrentValue,
+} from "../repos/krRepo";
 import { createCheckin, listCheckinsByKr } from "../repos/checkinRepo";
 import { requireAuth } from "../middleware/auth";
 import { requireTenant } from "../middleware/tenantContext";
@@ -134,6 +141,35 @@ router.get("/:krId/insights", async (req, res, next) => {
       return res.status(404).json({ error: "kr_insights_not_found" });
     }
     res.json(insight);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /krs/:krId/delete-info
+router.get("/:krId/delete-info", async (req, res, next) => {
+  try {
+    const info = await getKrDeleteInfo(req.tenantId!, req.params.krId);
+    if (!info) {
+      return res.status(404).json({ error: "kr_not_found" });
+    }
+    res.json(info);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /krs/:krId
+router.delete("/:krId", async (req, res, next) => {
+  try {
+    const kr = await getKrById(req.tenantId!, req.params.krId);
+    if (!kr) {
+      return res.status(404).json({ error: "kr_not_found" });
+    }
+    const info = await getKrDeleteInfo(req.tenantId!, req.params.krId);
+    await deleteKrCascade(req.tenantId!, req.params.krId);
+    await recomputeKrAndOkrInsights(req.tenantId!, kr.okrId);
+    res.json({ ok: true, deleted: info ?? { krId: kr.id, checkinsCount: 0 } });
   } catch (err) {
     next(err);
   }

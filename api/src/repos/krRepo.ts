@@ -196,3 +196,63 @@ export async function getKrById(
     unit: rows[0].unit ?? null,
   };
 }
+
+export async function getKrDeleteInfo(
+  tenantId: string,
+  krId: string
+): Promise<{ krId: string; checkinsCount: number } | null> {
+  const rows = await query<any>(
+    `
+    SELECT
+      COUNT(kc.id) as checkinsCount
+    FROM dbo.key_results kr
+    INNER JOIN dbo.okrs o ON kr.okr_id = o.id
+    LEFT JOIN dbo.kr_checkins kc
+      ON kc.key_result_id = kr.id
+      AND kc.tenant_id = o.tenant_id
+    WHERE kr.id = CAST(@krId as uniqueidentifier)
+      AND o.tenant_id = CAST(@tenantId as uniqueidentifier)
+    `,
+    { tenantId, krId }
+  );
+
+  if (!rows[0]) return null;
+  return {
+    krId,
+    checkinsCount: Number(rows[0].checkinsCount ?? 0),
+  };
+}
+
+export async function deleteKrCascade(
+  tenantId: string,
+  krId: string
+): Promise<void> {
+  await query(
+    `
+    DELETE FROM dbo.kr_checkins
+    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+      AND key_result_id = CAST(@krId as uniqueidentifier)
+    `,
+    { tenantId, krId }
+  );
+
+  await query(
+    `
+    DELETE FROM dbo.KrInsights
+    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+      AND kr_id = CAST(@krId as uniqueidentifier)
+    `,
+    { tenantId, krId }
+  );
+
+  await query(
+    `
+    DELETE FROM dbo.key_results
+    WHERE id = CAST(@krId as uniqueidentifier)
+      AND okr_id IN (
+        SELECT id FROM dbo.okrs WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+      )
+    `,
+    { tenantId, krId }
+  );
+}
