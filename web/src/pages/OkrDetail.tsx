@@ -162,7 +162,6 @@ export default function OkrDetail() {
     load();
   }, [okrId]);
 
-  if (err) return <pre style={{ padding: 16 }}>{err}</pre>;
   if (!data) return <div style={{ padding: 16 }}>Cargando.</div>;
 
   const selectableKrs = data.krs.filter(
@@ -252,6 +251,16 @@ export default function OkrDetail() {
   return (
     <div className="page">
       <div className="page-content">
+        {err && (
+          <Modal title="Error" onClose={() => setErr(null)}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>{err}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setErr(null)}>Cerrar</button>
+              </div>
+            </div>
+          </Modal>
+        )}
         <div style={{ marginBottom: 12 }}>
           <Link to="/">{"<"} Volver</Link>
         </div>

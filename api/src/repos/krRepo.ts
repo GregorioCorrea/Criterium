@@ -230,8 +230,7 @@ export async function deleteKrCascade(
   await query(
     `
     DELETE FROM dbo.kr_checkins
-    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      AND key_result_id = CAST(@krId as uniqueidentifier)
+    WHERE key_result_id = CAST(@krId as uniqueidentifier)
     `,
     { tenantId, krId }
   );

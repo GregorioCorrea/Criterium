@@ -12,7 +12,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireTenant } from "../middleware/tenantContext";
 import { okrExists } from "../repos/okrRepo";
 import { getKrInsightsByKrId } from "../repos/insightsRepo";
-import { recomputeKrAndOkrInsights } from "../services/insights";
+import { recomputeKrAndOkrInsights, recomputeOkrInsights } from "../services/insights";
 import { computeProgressPct } from "../domain/krHealth";
 import { aiValidateKr, ruleValidateKr } from "../services/aiOkr";
 
@@ -178,7 +178,7 @@ router.delete("/:krId", async (req, res, next) => {
       checkinsCount: info?.checkinsCount ?? 0,
     });
     await deleteKrCascade(req.tenantId!, req.params.krId);
-    await recomputeKrAndOkrInsights(req.tenantId!, kr.okrId);
+    await recomputeOkrInsights(req.tenantId!, kr.okrId);
     res.json({ ok: true, deleted: info ?? { krId: kr.id, checkinsCount: 0 } });
   } catch (err) {
     next(err);
