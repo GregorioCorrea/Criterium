@@ -80,7 +80,7 @@ router.post("/with-krs", async (req, res) => {
     appliedValidation = { ...fresh, fingerprint };
   }
 
-  const hasHigh = appliedValidation.issues?.some((i) => i.severity === "high");
+  const hasHigh = appliedValidation.issues?.some((i: { severity?: string }) => i.severity === "high");
   if (hasHigh) {
     return res.status(400).json({ error: "ai_validation_failed", issues: appliedValidation.issues });
   }
