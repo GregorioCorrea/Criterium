@@ -44,6 +44,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 export async function apiDelete<T>(path: string): Promise<T> {
   const token = await getTeamsToken();
 
+  console.log("[api] delete", { path });
   const res = await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
     cache: "no-store",
@@ -54,8 +55,10 @@ export async function apiDelete<T>(path: string): Promise<T> {
   });
 
   if (!res.ok) {
+    console.log("[api] delete failed", { path, status: res.status });
     const text = await res.text();
     throw new Error(`API ${res.status}: ${text}`);
   }
+  console.log("[api] delete ok", { path });
   return res.json();
 }

@@ -161,9 +161,11 @@ export default function OkrDetail() {
   const handleDeleteOkr = async () => {
     if (!okrId) return;
     try {
+      console.log("[okr] delete-info request", { okrId });
       const info = await apiGet<{ okrId: string; krCount: number; checkinsCount: number }>(
         `/okrs/${okrId}/delete-info`
       );
+      console.log("[okr] delete-info response", info);
       const message = [
         "Vas a borrar este OKR.",
         info.krCount > 0 ? `Incluye ${info.krCount} KR(s).` : "No tiene KRs.",
@@ -174,7 +176,9 @@ export default function OkrDetail() {
       ].join(" ");
       const ok = window.confirm(message);
       if (!ok) return;
+      console.log("[okr] delete request", { okrId });
       await apiDelete<{ ok: boolean }>(`/okrs/${okrId}`);
+      console.log("[okr] delete response", { okrId });
       window.location.href = "/";
     } catch (e: any) {
       setErr(formatApiError(e.message));
@@ -183,9 +187,11 @@ export default function OkrDetail() {
 
   const handleDeleteKr = async (krId: string) => {
     try {
+      console.log("[kr] delete-info request", { krId });
       const info = await apiGet<{ krId: string; checkinsCount: number }>(
         `/krs/${krId}/delete-info`
       );
+      console.log("[kr] delete-info response", info);
       const message = [
         "Vas a borrar este KR.",
         info.checkinsCount > 0
@@ -195,7 +201,9 @@ export default function OkrDetail() {
       ].join(" ");
       const ok = window.confirm(message);
       if (!ok) return;
+      console.log("[kr] delete request", { krId });
       await apiDelete<{ ok: boolean }>(`/krs/${krId}`);
+      console.log("[kr] delete response", { krId });
       load();
     } catch (e: any) {
       setErr(formatApiError(e.message));
