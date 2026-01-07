@@ -8,6 +8,7 @@ import { getOkrInsightsByOkrId } from "../repos/insightsRepo";
 import { ensureInitialOkrInsights, recomputeKrAndOkrInsights } from "../services/insights";
 import { createKr } from "../repos/krRepo";
 import { aiValidateOkr, ruleValidateOkr } from "../services/aiOkr";
+import { computeOkrFingerprint } from "../services/validationFingerprint";
 
 const router = Router();
 
@@ -43,28 +44,45 @@ router.post("/", async (req, res) => {
 });
 
 router.post("/with-krs", async (req, res) => {
-  const { objective, fromDate, toDate, krs } = req.body ?? {};
+  const { objective, fromDate, toDate, krs, validation } = req.body ?? {};
   if (!objective || !fromDate || !toDate || !Array.isArray(krs)) {
     return res.status(400).json({ error: "missing_fields" });
   }
 
+  const fingerprint = computeOkrFingerprint({ objective, fromDate, toDate, krs });
   const aiRequired = (process.env.INSIGHTS_AI_ENABLED || "").toLowerCase() === "true";
-  let validation = await aiValidateOkr({ objective, fromDate, toDate, krs });
-  if (!validation) {
-    if (aiRequired) {
-      return res.status(502).json({ error: "ai_unavailable" });
-    }
-    validation = ruleValidateOkr({
+  let appliedValidation = validation && validation.fingerprint === fingerprint ? validation : null;
+  if (validation && validation.fingerprint !== fingerprint) {
+    console.log("[ai] okr create validation mismatch", {
+      provided: validation.fingerprint,
+      expected: fingerprint,
+    });
+  }
+  if (!appliedValidation) {
+    let fresh = await aiValidateOkr({
+      today: new Date().toISOString().slice(0, 10),
       objective,
       fromDate,
       toDate,
-      krs: krs.map((kr: any) => ({ title: kr.title, targetValue: kr.targetValue })),
+      krs,
     });
+    if (!fresh) {
+      if (aiRequired) {
+        return res.status(502).json({ error: "ai_unavailable" });
+      }
+      fresh = ruleValidateOkr({
+        objective,
+        fromDate,
+        toDate,
+        krs: krs.map((kr: any) => ({ title: kr.title, targetValue: kr.targetValue })),
+      });
+    }
+    appliedValidation = { ...fresh, fingerprint };
   }
 
-  const hasHigh = validation.issues?.some((i) => i.severity === "high");
+  const hasHigh = appliedValidation.issues?.some((i) => i.severity === "high");
   if (hasHigh) {
-    return res.status(400).json({ error: "ai_validation_failed", issues: validation.issues });
+    return res.status(400).json({ error: "ai_validation_failed", issues: appliedValidation.issues });
   }
 
   const okr = await createOkr(req.tenantId!, { objective, fromDate, toDate });
@@ -86,7 +104,7 @@ router.post("/with-krs", async (req, res) => {
     await recomputeKrAndOkrInsights(req.tenantId!, created.id);
   }
 
-  res.status(201).json({ okr, krs: createdKrs, validation });
+  res.status(201).json({ okr, krs: createdKrs, validation: appliedValidation });
 });
 
 export default router;

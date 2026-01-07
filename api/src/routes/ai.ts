@@ -10,6 +10,7 @@ import {
   ruleValidateOkr,
 } from "../services/aiOkr";
 import { getAiClient, getAiDeployment, isAiEnabled, withRetry } from "../services/aiClient";
+import { computeOkrFingerprint } from "../services/validationFingerprint";
 
 const router = Router();
 
@@ -108,6 +109,11 @@ router.post("/okr/validate", async (req, res) => {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const fingerprint = computeOkrFingerprint({ objective, fromDate, toDate, krs });
+  console.log("[ai] okr validate", {
+    fingerprint,
+    krs: krs.length,
+  });
 
   const ai = await aiValidateOkr({ today, objective, fromDate, toDate, krs });
   if (!ai) {
@@ -120,10 +126,10 @@ router.post("/okr/validate", async (req, res) => {
         targetValue: kr.targetValue,
       })),
     });
-    return res.json({ ...rules, source: "rules" });
+    return res.json({ ...rules, source: "rules", fingerprint });
   }
 
-  res.json({ ...ai, source: "ai" });
+  res.json({ ...ai, source: "ai", fingerprint });
 });
 
 router.post("/okr/fix", async (req, res) => {

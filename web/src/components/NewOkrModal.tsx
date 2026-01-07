@@ -26,6 +26,7 @@ type ValidateResponse = {
   issues: Issue[];
   score?: number;
   source?: string;
+  fingerprint?: string;
 };
 
 type KrDraft = {
@@ -74,6 +75,8 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
   const [answers, setAnswers] = useState<string[]>(["", "", ""]);
   const [proposalCount, setProposalCount] = useState(0);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [lastValidationKey, setLastValidationKey] = useState<string | null>(null);
+  const [lastValidationFingerprint, setLastValidationFingerprint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
@@ -107,6 +110,21 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
       unit: kr.unit || null,
       targetValue: Number(kr.targetValue),
     }));
+
+  const buildValidationKey = () =>
+    JSON.stringify({
+      objective: objective.trim(),
+      fromDate: fromDate.trim(),
+      toDate: toDate.trim(),
+      krs: krs.map((kr) => ({
+        title: kr.title.trim(),
+        metricName: kr.metricName.trim(),
+        unit: kr.unit.trim(),
+        targetValue: kr.targetValue.trim(),
+      })),
+    });
+  const validationKey = buildValidationKey();
+  const validationStale = lastValidationKey !== null && lastValidationKey !== validationKey;
 
   const handleDraft = async () => {
     setErr(null);
@@ -154,8 +172,13 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
   const handleValidate = async () => {
     setErr(null);
+    if (lastValidationKey && lastValidationKey === validationKey && issues.length >= 0) {
+      setStep(3);
+      return;
+    }
     setBusy(true);
     try {
+      console.log("[okr] validate request", { key: validationKey });
       const res = await apiPost<ValidateResponse>("/ai/okr/validate", {
         objective,
         fromDate,
@@ -164,6 +187,12 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
       });
       setIssues(res.issues || []);
       setNotes([]);
+      setLastValidationKey(validationKey);
+      setLastValidationFingerprint(res.fingerprint ?? null);
+      console.log("[okr] validate response", {
+        issues: res.issues?.length ?? 0,
+        fingerprint: res.fingerprint ?? null,
+      });
       setStep(3);
     } catch (e: any) {
       setErr(formatApiError(e.message));
@@ -174,14 +203,28 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
   const handleCreate = async () => {
     setErr(null);
+    if (!lastValidationKey || lastValidationKey !== validationKey) {
+      setErr("Revalida el OKR antes de crear, hubo cambios desde la ultima validacion.");
+      return;
+    }
+    if (!lastValidationFingerprint) {
+      setErr("Revalida el OKR antes de crear.");
+      return;
+    }
     setBusy(true);
     try {
+      console.log("[okr] create request", { fingerprint: lastValidationFingerprint });
       const res = await apiPost<{ okr: { id: string } }>("/okrs/with-krs", {
         objective,
         fromDate,
         toDate,
         krs: krPayload(),
+        validation: {
+          fingerprint: lastValidationFingerprint,
+          issues,
+        },
       });
+      console.log("[okr] create response", { okrId: res.okr.id });
       onCreated(res.okr.id);
     } catch (e: any) {
       setErr(formatApiError(e.message));
@@ -439,6 +482,11 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         <div style={{ display: "grid", gap: 12 }}>
           {renderOkrFields(false)}
           <h3>Validacion</h3>
+          {validationStale && (
+            <div style={{ color: "#f5b4b4" }}>
+              Cambios realizados, es necesario revalidar.
+            </div>
+          )}
           {issues.length === 0 && <div>Sin issues.</div>}
           {issues.map((i, idx) => (
             <div key={idx} style={{ border: "1px solid #2a3440", padding: 8, borderRadius: 8 }}>
