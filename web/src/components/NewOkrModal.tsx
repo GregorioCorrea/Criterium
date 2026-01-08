@@ -443,7 +443,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
         <details open>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>Propuesta IA</summary>
-          <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+          <div style={{ display: "grid", gap: 12, marginTop: 8 }} className="text-wrap">
             {draft?.warnings?.length ? (
               <div style={{ color: "#a6adbb" }}>
                 {draft.warnings
@@ -454,23 +454,12 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
             {questions.length > 0 && (
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ fontWeight: 600 }}>Preguntas para ajustar contexto</div>
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 8,
-                    gridTemplateColumns: "1.5fr 1fr",
-                    fontWeight: 600,
-                    color: "var(--muted)",
-                  }}
-                >
+                <div className="qa-grid" style={{ fontWeight: 600, color: "var(--muted)" }}>
                   <div>Pregunta</div>
                   <div>Respuesta</div>
                 </div>
                 {questions.map((q, idx) => (
-                  <div
-                    key={idx}
-                    style={{ display: "grid", gap: 8, gridTemplateColumns: "1.5fr 1fr" }}
-                  >
+                  <div key={idx} className="qa-grid">
                     <div>{q}</div>
                     <input
                       value={answers[idx] ?? ""}
@@ -513,22 +502,16 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         </details>
 
         <details open>
-          <summary style={{ cursor: "pointer", fontWeight: 600 }}>KRs propuestos y actuales</summary>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+            KRs propuestos y actuales
+          </summary>
           <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
             {krs.length === 0 && (
               <div style={{ color: "#a6adbb" }}>
                 No hay KRs cargados. Agrega al menos uno para validar.
               </div>
             )}
-            <div
-              style={{
-                display: "grid",
-                gap: 8,
-                gridTemplateColumns: "2fr 1fr 1fr 1fr auto",
-                fontWeight: 600,
-                color: "var(--muted)",
-              }}
-            >
+            <div className="form-grid-5" style={{ fontWeight: 600, color: "var(--muted)" }}>
               <div>Titulo</div>
               <div>Metrica</div>
               <div>Unidad</div>
@@ -536,10 +519,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
               <div>Acciones</div>
             </div>
             {krs.map((kr, idx) => (
-              <div
-                key={idx}
-                style={{ display: "grid", gap: 8, gridTemplateColumns: "2fr 1fr 1fr 1fr auto" }}
-              >
+              <div key={idx} className="form-grid-5">
                 <input
                   value={kr.title}
                   onChange={(e) => {

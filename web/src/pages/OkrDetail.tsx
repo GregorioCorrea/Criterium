@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { apiDelete, apiGet, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
@@ -92,6 +92,8 @@ export default function OkrDetail() {
     value: "",
     comment: "",
   });
+  const [checkinError, setCheckinError] = useState<string | null>(null);
+  const checkinValueRef = useRef<HTMLInputElement | null>(null);
   const [aiContext, setAiContext] = useState("");
   const [aiDraft, setAiDraft] = useState<AiDraftResponse | null>(null);
   const [aiQuestions, setAiQuestions] = useState<string[]>([]);
@@ -160,6 +162,13 @@ export default function OkrDetail() {
   const selectableKrs = data.krs.filter(
     (kr) => kr.progressPct === null || kr.progressPct < 100
   );
+  const selectedKr = selectableKrs.find((kr) => kr.id === checkinForm.krId);
+  const metricLabel = selectedKr?.metricName || selectedKr?.title || "la metrica";
+  const unitLabel = selectedKr?.unit || "";
+  const isPercentUnit = /%|porcent/i.test(unitLabel);
+  const checkinPlaceholder = isPercentUnit
+    ? `Ingrese el valor actual para la metrica ${metricLabel} (%)`
+    : `Ingrese el valor actual para la metrica ${metricLabel}`;
 
   const handleDeleteOkr = async () => {
     if (!okrId) return;
@@ -592,7 +601,7 @@ export default function OkrDetail() {
                           });
                         }}
                       >
-                        🗑
+                        Borrar
                       </button>
                     </div>
                   </div>
@@ -703,6 +712,19 @@ export default function OkrDetail() {
 
         <details id="section-checkin" style={{ marginTop: 12, ...panelStyle }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>Registrar check-in</summary>
+          {checkinError && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: 8,
+                border: "1px solid #5a2b2b",
+                color: "#f5b4b4",
+                borderRadius: 8,
+              }}
+            >
+              {checkinError}
+            </div>
+          )}
           {selectableKrs.length === 0 && (
             <div style={{ color: "#a6adbb", marginTop: 8 }}>
               Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
@@ -728,7 +750,9 @@ export default function OkrDetail() {
               ))}
             </select>
             <input
-              placeholder="Valor actual"
+              ref={checkinValueRef}
+              placeholder={checkinPlaceholder}
+              inputMode="decimal"
               value={checkinForm.value}
               onChange={(e) => setCheckinForm({ ...checkinForm, value: e.target.value })}
             />
@@ -738,21 +762,44 @@ export default function OkrDetail() {
               onChange={(e) => setCheckinForm({ ...checkinForm, comment: e.target.value })}
             />
           </div>
+          {unitLabel && (
+            <div style={{ marginTop: 6, color: "var(--muted)" }}>
+              Unidad de la metrica: {unitLabel}
+            </div>
+          )}
           <div style={{ marginTop: 8 }}>
             <button
               disabled={busy || selectableKrs.length === 0}
               onClick={async () => {
                 if (!checkinForm.krId) return;
+                setCheckinError(null);
+                const numericValue = Number(checkinForm.value);
+                if (checkinForm.value.trim().length === 0 || Number.isNaN(numericValue)) {
+                  setCheckinError("Ingresa un valor numerico valido para el check-in.");
+                  checkinValueRef.current?.focus();
+                  checkinValueRef.current?.select();
+                  return;
+                }
+                if (isPercentUnit && (numericValue < 0 || numericValue > 100)) {
+                  setCheckinError("El valor debe estar entre 0 y 100 para una metrica porcentual.");
+                  checkinValueRef.current?.focus();
+                  checkinValueRef.current?.select();
+                  return;
+                }
                 setBusy(true);
                 try {
                   await apiPost(`/krs/${checkinForm.krId}/checkins`, {
-                    value: Number(checkinForm.value),
+                    value: numericValue,
                     comment: checkinForm.comment || null,
                   });
                   setCheckinForm({ krId: "", value: "", comment: "" });
+                  setCheckinError(null);
                   load();
                 } catch (e: any) {
-                  setErr(formatApiError(e.message));
+                  const msg = formatApiError(e.message);
+                  setCheckinError(msg);
+                  checkinValueRef.current?.focus();
+                  checkinValueRef.current?.select();
                 } finally {
                   setBusy(false);
                 }

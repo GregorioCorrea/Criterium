@@ -139,7 +139,8 @@ button:hover {
 .modal-panel {
   width: min(760px, 94vw);
   max-height: 90vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -172,6 +173,7 @@ button:hover {
 .modal-body {
   display: grid;
   gap: 12px;
+  overflow-x: hidden;
 }
 
 .table-wrap {
@@ -190,6 +192,37 @@ button:hover {
   padding: 12px;
   border-top: 1px solid var(--border);
   background: var(--panel);
+}
+
+.form-grid-4,
+.form-grid-5,
+.qa-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.form-grid-4 {
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+}
+
+.form-grid-5 {
+  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(120px, 1fr)) minmax(110px, 1fr);
+}
+
+.qa-grid {
+  grid-template-columns: minmax(220px, 1.5fr) minmax(160px, 1fr);
+}
+
+.text-wrap {
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .form-grid-4,
+  .form-grid-5,
+  .qa-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-color-scheme: light) {
