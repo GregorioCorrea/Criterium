@@ -675,3 +675,4 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     </Modal>
   );
 }
+

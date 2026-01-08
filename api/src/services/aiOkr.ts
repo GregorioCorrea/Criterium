@@ -272,6 +272,21 @@ export async function aiValidateOkr(input: {
   if (!prompt) return null;
 
   try {
+    const parseDate = (value: string) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [y, m, d] = value.split("-").map((v) => Number(v));
+        return Date.UTC(y, m - 1, d);
+      }
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? NaN : parsed;
+    };
+    const fromValue = parseDate(input.fromDate);
+    const toValue = parseDate(input.toDate);
+    const dateOrderOk =
+      Number.isFinite(fromValue) &&
+      Number.isFinite(toValue) &&
+      Number(fromValue) <= Number(toValue);
+
     const content = await runChatJson(
       "okr-validate",
       prompt,
@@ -282,8 +297,21 @@ export async function aiValidateOkr(input: {
     if (!content) return null;
     const parsed = safeParseJson<AiValidateOkrOutput>(content);
     if (!parsed || !Array.isArray(parsed.issues)) return null;
+    let issues = normalizeIssues(parsed.issues);
+    if (dateOrderOk) {
+      issues = issues.filter((i) => {
+        const code = i.code.toLowerCase();
+        if (code.includes("fecha") || code.includes("date")) {
+          return false;
+        }
+        if (i.message.toLowerCase().includes("fecha de inicio")) {
+          return false;
+        }
+        return true;
+      });
+    }
     return {
-      issues: normalizeIssues(parsed.issues),
+      issues,
       score: typeof parsed.score === "number" ? parsed.score : undefined,
     };
   } catch {

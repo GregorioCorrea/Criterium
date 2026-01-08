@@ -56,6 +56,15 @@ type AiDraftResponse = {
   warnings?: string[];
 };
 
+type KrSortKey =
+  | "title"
+  | "metricName"
+  | "currentValue"
+  | "targetValue"
+  | "progress"
+  | "health"
+  | "insight";
+
 function formatHealth(value: string | null | undefined): string {
   switch (value) {
     case "no_target":
@@ -78,6 +87,7 @@ export default function OkrDetail() {
   const [data, setData] = useState<OkrDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [krSort, setKrSort] = useState<{ key: KrSortKey; dir: "asc" | "desc" } | null>(null);
   const [krForm, setKrForm] = useState({
     title: "",
     metricName: "",
@@ -159,8 +169,57 @@ export default function OkrDetail() {
     background: "var(--panel)",
   };
 
+  const healthOrder: Record<string, number> = {
+    no_target: 0,
+    no_checkins: 1,
+    off_track: 2,
+    at_risk: 3,
+    on_track: 4,
+  };
+
   const selectableKrs = data.krs.filter(
     (kr) => kr.progressPct === null || kr.progressPct < 100
+  );
+  const sortedKrs = [...data.krs].sort((a, b) => {
+    if (!krSort) return 0;
+    const dir = krSort.dir === "asc" ? 1 : -1;
+    switch (krSort.key) {
+      case "title":
+        return a.title.localeCompare(b.title) * dir;
+      case "metricName":
+        return (a.metricName ?? "").localeCompare(b.metricName ?? "") * dir;
+      case "currentValue":
+        return ((a.currentValue ?? 0) - (b.currentValue ?? 0)) * dir;
+      case "targetValue":
+        return ((a.targetValue ?? 0) - (b.targetValue ?? 0)) * dir;
+      case "progress":
+        return ((a.progressPct ?? 0) - (b.progressPct ?? 0)) * dir;
+      case "health":
+        return ((healthOrder[a.health] ?? 0) - (healthOrder[b.health] ?? 0)) * dir;
+      case "insight":
+        return (a.insights?.explanationShort ?? "")
+          .localeCompare(b.insights?.explanationShort ?? "") * dir;
+      default:
+        return 0;
+    }
+  });
+
+  const renderKrSortHeader = (label: string, key: KrSortKey) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span>{label}</span>
+      <button
+        style={{ padding: "2px 6px", fontSize: 12, opacity: krSort?.key === key && krSort?.dir === "asc" ? 1 : 0.5 }}
+        onClick={() => setKrSort({ key, dir: "asc" })}
+      >
+        ▲
+      </button>
+      <button
+        style={{ padding: "2px 6px", fontSize: 12, opacity: krSort?.key === key && krSort?.dir === "desc" ? 1 : 0.5 }}
+        onClick={() => setKrSort({ key, dir: "desc" })}
+      >
+        ▼
+      </button>
+    </div>
   );
   const selectedKr = selectableKrs.find((kr) => kr.id === checkinForm.krId);
   const metricLabel = selectedKr?.metricName || selectedKr?.title || "la metrica";
@@ -353,18 +412,18 @@ export default function OkrDetail() {
           <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-                <th>Titulo</th>
-                <th>Metrica</th>
-                <th>Actual</th>
-                <th>Target</th>
-                <th>Progreso</th>
-                <th>Estado</th>
-                <th>Estado y recomendacion</th>
+                <th>{renderKrSortHeader("Titulo", "title")}</th>
+                <th>{renderKrSortHeader("Metrica", "metricName")}</th>
+                <th>{renderKrSortHeader("Actual", "currentValue")}</th>
+                <th>{renderKrSortHeader("Target", "targetValue")}</th>
+                <th>{renderKrSortHeader("Progreso", "progress")}</th>
+                <th>{renderKrSortHeader("Estado", "health")}</th>
+                <th>{renderKrSortHeader("Estado y recomendacion", "insight")}</th>
                 <th style={{ width: 120, whiteSpace: "nowrap" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {data.krs.map((kr) => (
+              {sortedKrs.map((kr) => (
                 <tr key={kr.id} style={{ borderBottom: "1px solid #eee", verticalAlign: "top" }}>
                   <td>{kr.title}</td>
                   <td>{kr.metricName ?? "-"}</td>
