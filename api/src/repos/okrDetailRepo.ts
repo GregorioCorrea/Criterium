@@ -1,6 +1,7 @@
 import { query } from "../db";
 import { getOkrSummary } from "./okrSummaryRepo";
 import { listKrsByOkr } from "./krRepo";
+import { listAlignedFrom, listAlignedTo } from "./okrAlignmentRepo";
 
 export async function getOkrDetail(tenantId: string, okrId: string) {
   const okrRows = await query<any>(
@@ -28,15 +29,19 @@ export async function getOkrDetail(tenantId: string, okrId: string) {
   if (!okrRows[0]) return null;
 
   const okr = okrRows[0];
-  const [summary, krs] = await Promise.all([
+  const [summary, krs, alignedTo, alignedFrom] = await Promise.all([
     getOkrSummary(tenantId, okrId),
     listKrsByOkr(tenantId, okrId),
+    listAlignedTo(tenantId, okrId),
+    listAlignedFrom(tenantId, okrId),
   ]);
 
   return {
     ...okr,
     summary,
     krs,
+    alignedTo,
+    alignedFrom,
     insights: okr.insightShort
       ? {
           explanationShort: String(okr.insightShort),

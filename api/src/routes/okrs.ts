@@ -3,12 +3,20 @@ import { requireAuth } from "../middleware/auth";
 import { requireTenant } from "../middleware/tenantContext";
 import { listOkrsWithSummary } from "../repos/okrBoardRepo";
 import { getOkrDetail } from "../repos/okrDetailRepo";
-import { createOkr, deleteOkrCascade, getOkrDeleteInfo } from "../repos/okrRepo";
+import { createOkr, deleteOkrCascade, getOkrDeleteInfo, okrExists } from "../repos/okrRepo";
 import { getOkrInsightsByOkrId } from "../repos/insightsRepo";
 import { ensureInitialOkrInsights, recomputeKrAndOkrInsights } from "../services/insights";
 import { createKr } from "../repos/krRepo";
 import { aiValidateOkr, ruleValidateOkr } from "../services/aiOkr";
 import { computeOkrFingerprint } from "../services/validationFingerprint";
+import {
+  addAlignment,
+  hasAlignmentPath,
+  listAlignedFrom,
+  listAlignedTo,
+  removeAlignment,
+} from "../repos/okrAlignmentRepo";
+import { validateAlignmentRules } from "../services/okrAlignment";
 
 const router = Router();
 
@@ -56,6 +64,59 @@ router.get("/:okrId", async (req, res) => {
     return res.status(404).json({ error: "okr_not_found" });
   }
   res.json(detail);
+});
+
+router.get("/:okrId/alignments", async (req, res) => {
+  const okrId = req.params.okrId;
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  if (!okrOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
+  const [alignedTo, alignedFrom] = await Promise.all([
+    listAlignedTo(req.tenantId!, okrId),
+    listAlignedFrom(req.tenantId!, okrId),
+  ]);
+  res.json({ alignedTo, alignedFrom });
+});
+
+router.post("/:okrId/alignments", async (req, res) => {
+  const okrId = req.params.okrId;
+  const { targetOkrId } = req.body ?? {};
+  if (!targetOkrId) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  const targetOk = await okrExists(req.tenantId!, String(targetOkrId));
+  if (!okrOk || !targetOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
+  const pathExists = await hasAlignmentPath(req.tenantId!, okrId, String(targetOkrId));
+  const validationError = validateAlignmentRules(String(targetOkrId), okrId, pathExists);
+  if (validationError === "self_link") {
+    return res.status(400).json({ error: "self_link" });
+  }
+  if (validationError === "cycle_detected") {
+    return res.status(400).json({ error: "cycle_detected" });
+  }
+  console.log("[okrs] alignment add", {
+    tenantId: req.tenantId,
+    parentOkrId: String(targetOkrId),
+    childOkrId: okrId,
+  });
+  await addAlignment(req.tenantId!, String(targetOkrId), okrId);
+  res.status(201).json({ ok: true });
+});
+
+router.delete("/:okrId/alignments/:parentOkrId", async (req, res) => {
+  const okrId = req.params.okrId;
+  const parentOkrId = req.params.parentOkrId;
+  console.log("[okrs] alignment remove", {
+    tenantId: req.tenantId,
+    parentOkrId,
+    childOkrId: okrId,
+  });
+  await removeAlignment(req.tenantId!, parentOkrId, okrId);
+  res.json({ ok: true });
 });
 
 router.get("/:okrId/insights", async (req, res) => {

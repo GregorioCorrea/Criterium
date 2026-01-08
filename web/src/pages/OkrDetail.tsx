@@ -3,6 +3,14 @@ import { useParams, Link } from "react-router-dom";
 import { apiDelete, apiGet, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
 
+type AlignedOkr = {
+  id: string;
+  objective: string;
+  fromDate: string;
+  toDate: string;
+  status: string;
+};
+
 type Kr = {
   id: string;
   title: string;
@@ -28,6 +36,8 @@ type OkrDetail = {
   fromDate: string;
   toDate: string;
   status: string;
+  alignedTo?: AlignedOkr[];
+  alignedFrom?: AlignedOkr[];
   summary: {
     krCount: number;
     avgProgressPct: number | null;
@@ -42,6 +52,14 @@ type OkrDetail = {
     source: string;
   } | null;
   krs: Kr[];
+};
+
+type OkrListItem = {
+  id: string;
+  objective: string;
+  fromDate: string;
+  toDate: string;
+  status: string;
 };
 
 type AiDraftResponse = {
@@ -85,6 +103,7 @@ function formatHealth(value: string | null | undefined): string {
 export default function OkrDetail() {
   const { okrId } = useParams();
   const [data, setData] = useState<OkrDetail | null>(null);
+  const [allOkrs, setAllOkrs] = useState<OkrListItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [krSort, setKrSort] = useState<{ key: KrSortKey; dir: "asc" | "desc" } | null>(null);
@@ -116,6 +135,13 @@ export default function OkrDetail() {
     kr: AiDraftResponse["suggestedKrs"][number];
     issues: { severity: string; message: string; fixSuggestion?: string }[];
   } | null>(null);
+  const [alignTargetId, setAlignTargetId] = useState("");
+  const [alignBusy, setAlignBusy] = useState(false);
+  const [alignConfirm, setAlignConfirm] = useState<{
+    parentOkrId: string;
+    childOkrId: string;
+    message: string;
+  } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     type: "okr" | "kr";
     okrId?: string;
@@ -130,17 +156,21 @@ export default function OkrDetail() {
       const code = parsed?.error;
       switch (code) {
         case "missing_fields":
-          return "Completá todos los campos obligatorios.";
+          return "Completa todos los campos obligatorios.";
         case "ai_unavailable":
-          return "La IA no está disponible ahora. Probá en unos minutos.";
+          return "La IA no esta disponible ahora. Proba en unos minutos.";
         case "ai_validation_failed":
-          return "Hay issues que bloquean la creación. Revisá las sugerencias.";
+          return "Hay issues que bloquean la creacion. Revisa las sugerencias.";
         case "kr_target_missing":
           return "El targetValue es obligatorio.";
         case "okr_not_found":
-          return "No se encontró el OKR.";
+          return "No se encontro el OKR.";
         case "kr_not_found":
-          return "No se encontró el KR.";
+          return "No se encontro el KR.";
+        case "self_link":
+          return "No podes alinear un OKR consigo mismo.";
+        case "cycle_detected":
+          return "Esa alineacion generaria un ciclo. Elegi otro OKR.";
         default:
           return parsed?.message || raw;
       }
@@ -151,8 +181,11 @@ export default function OkrDetail() {
 
   const load = () => {
     if (!okrId) return;
-    apiGet<OkrDetail>(`/okrs/${okrId}`)
-      .then(setData)
+    Promise.all([apiGet<OkrDetail>(`/okrs/${okrId}`), apiGet<OkrListItem[]>(`/okrs`)])
+      .then(([detail, list]) => {
+        setData(detail);
+        setAllOkrs(list);
+      })
       .catch((e) => setErr(formatApiError(e.message)));
   };
 
@@ -179,6 +212,10 @@ export default function OkrDetail() {
 
   const selectableKrs = data.krs.filter(
     (kr) => kr.progressPct === null || kr.progressPct < 100
+  );
+  const alignedToIds = new Set((data.alignedTo ?? []).map((okr) => okr.id.toLowerCase()));
+  const selectableAlignTargets = allOkrs.filter(
+    (okr) => okr.id.toLowerCase() !== data.id.toLowerCase() && !alignedToIds.has(okr.id.toLowerCase())
   );
   const sortedKrs = [...data.krs].sort((a, b) => {
     if (!krSort) return 0;
@@ -365,6 +402,31 @@ export default function OkrDetail() {
             </div>
           </div>
         )}
+        {alignConfirm && (
+          <div style={{ ...panelStyle, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Confirmar alineacion</div>
+            <div style={{ marginBottom: 8 }}>{alignConfirm.message}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setAlignConfirm(null)}>Cancelar</button>
+              <button
+                onClick={async () => {
+                  try {
+                    await apiDelete(
+                      `/okrs/${alignConfirm.childOkrId}/alignments/${alignConfirm.parentOkrId}`
+                    );
+                    setAlignConfirm(null);
+                    load();
+                  } catch (e: any) {
+                    setAlignConfirm(null);
+                    setErr(formatApiError(e.message));
+                  }
+                }}
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        )}
         <div style={{ marginBottom: 12 }}>
           <Link to="/">{"<"} Volver</Link>
         </div>
@@ -394,6 +456,120 @@ export default function OkrDetail() {
             <b>KRs:</b> {data.summary?.krCount ?? 0}
           </div>
         </div>
+
+        <details id="section-alignment" open style={{ marginBottom: 16, ...panelStyle }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Alineacion</summary>
+          <div style={{ marginTop: 8, display: "grid", gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Este OKR contribuye a:</div>
+              {(data.alignedTo ?? []).length === 0 && (
+                <div style={{ color: "var(--muted)" }}>Sin alineaciones.</div>
+              )}
+              {(data.alignedTo ?? []).map((okr) => (
+                <div
+                  key={okr.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <div>
+                    <div>{okr.objective}</div>
+                    <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                      {okr.fromDate} - {okr.toDate} · {okr.status}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setAlignConfirm({
+                        parentOkrId: okr.id,
+                        childOkrId: data.id,
+                        message:
+                          "Vas a quitar la alineacion entre estos OKRs. Esta accion no se puede deshacer. Continuar?",
+                      });
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>OKRs que contribuyen a este:</div>
+              {(data.alignedFrom ?? []).length === 0 && (
+                <div style={{ color: "var(--muted)" }}>Sin alineaciones.</div>
+              )}
+              {(data.alignedFrom ?? []).map((okr) => (
+                <div
+                  key={okr.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <div>
+                    <div>{okr.objective}</div>
+                    <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                      {okr.fromDate} - {okr.toDate} · {okr.status}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setAlignConfirm({
+                        parentOkrId: data.id,
+                        childOkrId: okr.id,
+                        message:
+                          "Vas a quitar la alineacion entre estos OKRs. Esta accion no se puede deshacer. Continuar?",
+                      });
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontWeight: 600 }}>Agregar alineacion</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <select
+                  value={alignTargetId}
+                  onChange={(e) => setAlignTargetId(e.target.value)}
+                >
+                  <option value="">Selecciona un OKR</option>
+                  {selectableAlignTargets.map((okr) => (
+                    <option key={okr.id} value={okr.id}>
+                      {okr.objective}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={alignBusy || !alignTargetId}
+                  onClick={async () => {
+                    if (!alignTargetId) return;
+                    setAlignBusy(true);
+                    try {
+                      await apiPost(`/okrs/${data.id}/alignments`, { targetOkrId: alignTargetId });
+                      setAlignTargetId("");
+                      load();
+                    } catch (e: any) {
+                      setErr(formatApiError(e.message));
+                    } finally {
+                      setAlignBusy(false);
+                    }
+                  }}
+                >
+                  {alignBusy ? "Agregando..." : "Agregar alineacion"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </details>
 
         <div style={{ marginBottom: 16, padding: 12, border: "1px solid var(--border)" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Estado y recomendacion</div>
@@ -869,6 +1045,7 @@ export default function OkrDetail() {
           </div>
         </details>
         <div className="sticky-actions" style={{ marginTop: 16 }}>
+          <button onClick={() => openSection("section-alignment")}>Alineacion</button>
           <button onClick={() => openSection("section-ai-kr")}>KRs (IA + manual)</button>
           <button onClick={() => openSection("section-checkin")}>Registrar check-in</button>
         </div>

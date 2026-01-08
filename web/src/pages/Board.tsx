@@ -10,6 +10,8 @@ type OkrBoard = {
   fromDate: string;
   toDate: string;
   status: string;
+  alignedTo?: Array<{ id: string }>;
+  alignedFrom?: Array<{ id: string }>;
   summary: {
     krCount: number;
     avgProgressPct: number | null;
@@ -23,7 +25,14 @@ type OkrBoard = {
   } | null;
 };
 
-type SortKey = "objective" | "fromDate" | "krCount" | "progress" | "health" | "motivo";
+type SortKey =
+  | "objective"
+  | "fromDate"
+  | "krCount"
+  | "progress"
+  | "health"
+  | "motivo"
+  | "alignment";
 
 function formatHealth(value: string | null | undefined): string {
   switch (value) {
@@ -91,6 +100,11 @@ export default function Board() {
         );
       case "motivo":
         return (a.insights?.explanationShort ?? "").localeCompare(b.insights?.explanationShort ?? "") * dir;
+      case "alignment": {
+        const aCount = (a.alignedTo?.length ?? 0) + (a.alignedFrom?.length ?? 0);
+        const bCount = (b.alignedTo?.length ?? 0) + (b.alignedFrom?.length ?? 0);
+        return (aCount - bCount) * dir;
+      }
       default:
         return 0;
     }
@@ -163,6 +177,7 @@ export default function Board() {
             <th>{renderSortHeader("Progreso", "progress")}</th>
             <th>{renderSortHeader("Estado", "health")}</th>
             <th>{renderSortHeader("Motivo", "motivo")}</th>
+            <th>{renderSortHeader("Alineacion", "alignment")}</th>
           </tr>
         </thead>
         <tbody>
@@ -179,13 +194,25 @@ export default function Board() {
                 <td>{o.summary?.avgProgressPct === null ? "-" : `${o.summary.avgProgressPct}%`}</td>
                 <td>{formatHealth(o.summary?.overallHealth ?? null)}</td>
                 <td>{o.insights?.explanationShort ?? "-"}</td>
+                <td>
+                  {(o.alignedTo?.length ?? 0) + (o.alignedFrom?.length ?? 0) === 0 ? (
+                    <span style={{ color: "var(--muted)" }}>-</span>
+                  ) : (
+                    <span className="align-badge">
+                      <span className="align-dot align-dot--up" />
+                      up {o.alignedTo?.length ?? 0}
+                      <span className="align-dot align-dot--down" />
+                      down {o.alignedFrom?.length ?? 0}
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
           {groupByQuarter &&
             groupedRows().map((group) => (
               <Fragment key={group.label}>
                 <tr style={{ background: "var(--panel)" }}>
-                  <td colSpan={6} style={{ fontWeight: 600 }}>
+                  <td colSpan={7} style={{ fontWeight: 600 }}>
                     {group.label}
                   </td>
                 </tr>
@@ -203,6 +230,18 @@ export default function Board() {
                     </td>
                     <td>{formatHealth(o.summary?.overallHealth ?? null)}</td>
                     <td>{o.insights?.explanationShort ?? "-"}</td>
+                    <td>
+                      {(o.alignedTo?.length ?? 0) + (o.alignedFrom?.length ?? 0) === 0 ? (
+                        <span style={{ color: "var(--muted)" }}>-</span>
+                      ) : (
+                        <span className="align-badge">
+                          <span className="align-dot align-dot--up" />
+                          up {o.alignedTo?.length ?? 0}
+                          <span className="align-dot align-dot--down" />
+                          down {o.alignedFrom?.length ?? 0}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </Fragment>

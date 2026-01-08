@@ -1,5 +1,6 @@
 import { query } from "../db";
 import { getOkrSummary, OkrSummary } from "./okrSummaryRepo";
+import { listAlignmentPairs } from "./okrAlignmentRepo";
 
 export type OkrBoardRow = {
   id: string;
@@ -8,6 +9,8 @@ export type OkrBoardRow = {
   toDate: string;
   status: string;
   summary: OkrSummary;
+  alignedTo?: Array<{ id: string; objective: string; fromDate: string; toDate: string; status: string }>;
+  alignedFrom?: Array<{ id: string; objective: string; fromDate: string; toDate: string; status: string }>;
   insights?: {
     explanationShort: string;
     suggestion: string;
@@ -38,12 +41,42 @@ export async function listOkrsWithSummary(tenantId: string): Promise<OkrBoardRow
     { tenantId }
   );
 
+  const alignmentPairs = await listAlignmentPairs(tenantId);
+  const okrById = new Map<string, any>();
+  for (const o of okrs) {
+    okrById.set(String(o.id), o);
+  }
+
   const result: OkrBoardRow[] = [];
   for (const o of okrs) {
+    const alignedTo = alignmentPairs
+      .filter((a) => a.childOkrId === String(o.id))
+      .map((a) => okrById.get(a.parentOkrId))
+      .filter(Boolean)
+      .map((p: any) => ({
+        id: String(p.id),
+        objective: String(p.objective),
+        fromDate: String(p.fromDate),
+        toDate: String(p.toDate),
+        status: String(p.status),
+      }));
+    const alignedFrom = alignmentPairs
+      .filter((a) => a.parentOkrId === String(o.id))
+      .map((a) => okrById.get(a.childOkrId))
+      .filter(Boolean)
+      .map((c: any) => ({
+        id: String(c.id),
+        objective: String(c.objective),
+        fromDate: String(c.fromDate),
+        toDate: String(c.toDate),
+        status: String(c.status),
+      }));
     const summary = await getOkrSummary(tenantId, o.id);
     result.push({
       ...o,
       summary,
+      alignedTo,
+      alignedFrom,
       insights: o.insightShort
         ? {
             explanationShort: String(o.insightShort),

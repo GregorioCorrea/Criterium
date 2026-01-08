@@ -217,6 +217,34 @@ button:hover {
   word-break: break-word;
 }
 
+.align-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.align-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.align-dot--up {
+  background: #3aa6ff;
+}
+
+.align-dot--down {
+  background: #f59e0b;
+}
+
 @media (max-width: 900px) {
   .form-grid-4,
   .form-grid-5,
