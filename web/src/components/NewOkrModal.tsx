@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { apiPost } from "../api";
 import AiStatus from "./AiStatus";
 import Modal from "./Modal";
@@ -79,11 +79,13 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
   const [lastValidationCacheKey, setLastValidationCacheKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
   const [fixingIssue, setFixingIssue] = useState<string | null>(null);
   const [lockedObjective, setLockedObjective] = useState(false);
   const [lockedDates, setLockedDates] = useState(false);
   const [resolvedIssueCodes, setResolvedIssueCodes] = useState<string[]>([]);
+  const messageRef = useRef<HTMLDivElement | null>(null);
 
   const dirty =
     objective.trim().length > 0 ||
@@ -134,9 +136,16 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     resolvedIssueCodes,
   });
   const validationStale = lastValidationKey !== null && lastValidationKey !== validationKey;
+  const hasValidated = lastValidationKey !== null;
+
+  const showMessage = (message: string) => {
+    setFormMessage(message);
+    setTimeout(() => messageRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+  };
 
   const handleDraft = async () => {
     setErr(null);
+    setFormMessage(null);
     setBusy(true);
     try {
       const res = await apiPost<DraftResponse>("/ai/okr/draft", draftPayload());
@@ -190,6 +199,11 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
   const handleValidate = async () => {
     setErr(null);
+    setFormMessage(null);
+    if (!objective.trim() || !fromDate.trim() || !toDate.trim()) {
+      showMessage("Completa los campos obligatorios antes de validar.");
+      return;
+    }
     if (lastValidationCacheKey && lastValidationCacheKey === validationCacheKey) {
       return;
     }
@@ -231,12 +245,13 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
   const handleCreate = async (allowHigh?: boolean) => {
     setErr(null);
+    setFormMessage(null);
     if (!lastValidationKey || lastValidationKey !== validationKey) {
-      setErr("Revalida el OKR antes de crear, hubo cambios desde la ultima validacion.");
+      showMessage("Revalida el OKR antes de crear, hubo cambios desde la ultima validacion.");
       return;
     }
     if (!lastValidationFingerprint) {
-      setErr("Revalida el OKR antes de crear.");
+      showMessage("Revalida el OKR antes de crear.");
       return;
     }
     setBusy(true);
@@ -267,6 +282,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
   const handleFixIssues = async (selectedIssues: Issue[]) => {
     setErr(null);
+    setFormMessage(null);
     setBusy(true);
     try {
       const fix = await apiPost<{
@@ -334,7 +350,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
     <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
       <div style={{ display: "grid", gap: 8 }}>
         <label>
-          Objetivo{" "}
+          Objetivo <span style={{ color: "#f5b4b4" }}>*</span>{" "}
           {lockedObjective && (
             <span
               style={{
@@ -364,7 +380,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         </label>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <label>
-            Desde{" "}
+            Desde <span style={{ color: "#f5b4b4" }}>*</span>{" "}
             {lockedDates && (
               <span
                 style={{
@@ -392,7 +408,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
             />
           </label>
           <label>
-            Hasta
+            Hasta <span style={{ color: "#f5b4b4" }}>*</span>
             <input
               type="date"
               value={toDate}
@@ -494,9 +510,6 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
                       : "Generar preguntas"}
                 </button>
               )}
-              <button disabled={busy} onClick={handleValidate}>
-                {busy ? "Validando..." : "Validar con IA"}
-              </button>
             </div>
           </div>
         </details>
@@ -576,49 +589,65 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
           </div>
         </details>
 
-        <details open>
-          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Validación</summary>
-          <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
-            {validationStale && (
-              <div style={{ color: "#f5b4b4" }}>Cambios realizados, es necesario revalidar.</div>
-            )}
-            {issues.length === 0 && <div>Sin issues.</div>}
-            {issues.map((i, idx) => (
-              <div key={idx} style={{ border: "1px solid #2a3440", padding: 8, borderRadius: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <div>
-                    <b>{i.severity.toUpperCase()}</b> - {i.message}
-                    {i.fixSuggestion && <div>Recomendacion: {i.fixSuggestion}</div>}
+        {hasValidated && (
+          <details open>
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Validación</summary>
+            <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+              {validationStale && (
+                <div style={{ color: "#f5b4b4" }}>Cambios realizados, es necesario revalidar.</div>
+              )}
+              {issues.length === 0 && <div>Sin issues.</div>}
+              {issues.map((i, idx) => (
+                <div key={idx} style={{ border: "1px solid #2a3440", padding: 8, borderRadius: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <b>{i.severity.toUpperCase()}</b> - {i.message}
+                      {i.fixSuggestion && <div>Recomendacion: {i.fixSuggestion}</div>}
+                    </div>
+                    <button
+                      disabled={busy}
+                      onClick={async () => {
+                        setFixingIssue(i.code || "issue");
+                        setErr(null);
+                        try {
+                          await handleFixIssues([i]);
+                        } finally {
+                          setFixingIssue(null);
+                        }
+                      }}
+                    >
+                      {fixingIssue === i.code ? "Corrigiendo..." : "Corregir"}
+                    </button>
                   </div>
-                  <button
-                    disabled={busy}
-                    onClick={async () => {
-                      setFixingIssue(i.code || "issue");
-                      setErr(null);
-                      try {
-                        await handleFixIssues([i]);
-                      } finally {
-                        setFixingIssue(null);
-                      }
-                    }}
-                  >
-                    {fixingIssue === i.code ? "Corrigiendo..." : "Corregir"}
-                  </button>
                 </div>
-              </div>
-            ))}
-            {notes.length > 0 && (
-              <div style={{ color: "#a6adbb" }}>Notas IA: {notes.join(" - ")}</div>
-            )}
-            {hasHigh && (
-              <div style={{ color: "#f5b4b4" }}>
-                Hay issues high. Podes corregirlos o continuar igual.
-              </div>
-            )}
-          </div>
-        </details>
+              ))}
+              {notes.length > 0 && (
+                <div style={{ color: "#a6adbb" }}>Notas IA: {notes.join(" - ")}</div>
+              )}
+              {hasHigh && (
+                <div style={{ color: "#f5b4b4" }}>
+                  Hay issues high. Podes corregirlos o continuar igual.
+                </div>
+              )}
+            </div>
+          </details>
+        )}
       </div>
       <div className="sticky-actions">
+        {formMessage && (
+          <div
+            ref={messageRef}
+            style={{
+              marginRight: "auto",
+              padding: "8px 10px",
+              border: "1px solid #5a2b2b",
+              color: "#f5b4b4",
+              borderRadius: 8,
+            }}
+          >
+            {formMessage}
+          </div>
+        )}
         {hasHigh && (
           <button
             disabled={busy}
@@ -628,7 +657,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
           </button>
         )}
         <button disabled={busy} onClick={handleValidate}>
-          {busy ? "Validando..." : "Revalidar"}
+          {busy ? "Validando..." : hasValidated ? "Revalidar" : "Validar con IA"}
         </button>
         <button
           disabled={busy}
