@@ -9,6 +9,8 @@ export type OkrMemberRow = {
   role: OkrRole;
   createdAt: string;
   createdBy: string | null;
+  displayName?: string | null;
+  email?: string | null;
 };
 
 export async function getOkrMember(
@@ -24,7 +26,9 @@ export async function getOkrMember(
       CAST(user_object_id as varchar(36)) as userObjectId,
       role,
       CONVERT(varchar(19), created_at, 120) as createdAt,
-      CAST(created_by as varchar(36)) as createdBy
+      CAST(created_by as varchar(36)) as createdBy,
+      display_name as displayName,
+      email as email
     FROM dbo.OkrMembers
     WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
       AND okr_id = CAST(@okrId as uniqueidentifier)
@@ -41,6 +45,8 @@ export async function getOkrMember(
     role: rows[0].role as OkrRole,
     createdAt: String(rows[0].createdAt),
     createdBy: rows[0].createdBy ? String(rows[0].createdBy) : null,
+    displayName: rows[0].displayName ?? null,
+    email: rows[0].email ?? null,
   };
 }
 
@@ -65,7 +71,9 @@ export async function listOkrMembers(
       CAST(user_object_id as varchar(36)) as userObjectId,
       role,
       CONVERT(varchar(19), created_at, 120) as createdAt,
-      CAST(created_by as varchar(36)) as createdBy
+      CAST(created_by as varchar(36)) as createdBy,
+      display_name as displayName,
+      email as email
     FROM dbo.OkrMembers
     WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
       AND okr_id = CAST(@okrId as uniqueidentifier)
@@ -81,6 +89,8 @@ export async function listOkrMembers(
     role: r.role as OkrRole,
     createdAt: String(r.createdAt),
     createdBy: r.createdBy ? String(r.createdBy) : null,
+    displayName: r.displayName ?? null,
+    email: r.email ?? null,
   }));
 }
 
@@ -90,20 +100,24 @@ export async function addOkrMember(input: {
   userObjectId: string;
   role: OkrRole;
   createdBy?: string | null;
+  displayName?: string | null;
+  email?: string | null;
 }): Promise<"created" | "exists"> {
   const existing = await getOkrMember(input.tenantId, input.okrId, input.userObjectId);
   if (existing) return "exists";
   await query(
     `
     INSERT INTO dbo.OkrMembers
-      (tenant_id, okr_id, user_object_id, role, created_at, created_by)
+      (tenant_id, okr_id, user_object_id, role, created_at, created_by, display_name, email)
     VALUES
       (CAST(@tenantId as uniqueidentifier),
        CAST(@okrId as uniqueidentifier),
        CAST(@userObjectId as uniqueidentifier),
        @role,
        SYSUTCDATETIME(),
-       CAST(@createdBy as uniqueidentifier))
+       CAST(@createdBy as uniqueidentifier),
+       @displayName,
+       @email)
     `,
     {
       tenantId: input.tenantId,
@@ -111,6 +125,8 @@ export async function addOkrMember(input: {
       userObjectId: input.userObjectId,
       role: input.role,
       createdBy: input.createdBy ?? null,
+      displayName: input.displayName ?? null,
+      email: input.email ?? null,
     }
   );
   return "created";

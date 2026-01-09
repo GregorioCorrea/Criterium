@@ -62,3 +62,23 @@ export async function apiDelete<T>(path: string): Promise<T> {
   console.log("[api] delete ok", { path });
   return res.json();
 }
+
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const token = await getTeamsToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+  return res.json();
+}

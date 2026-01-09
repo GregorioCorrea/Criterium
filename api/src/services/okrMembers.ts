@@ -10,6 +10,8 @@ export function buildOwnerMember(input: {
   userObjectId: string;
   role: OkrRole;
   createdBy: string;
+  displayName?: string | null;
+  email?: string | null;
 } {
   return {
     tenantId: input.tenantId,
@@ -17,6 +19,8 @@ export function buildOwnerMember(input: {
     userObjectId: input.userObjectId,
     role: "owner",
     createdBy: input.userObjectId,
+    displayName: null,
+    email: null,
   };
 }
 

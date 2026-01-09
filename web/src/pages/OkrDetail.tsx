@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { apiDelete, apiGet, apiPost } from "../api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
 
 type AlignedOkr = {
@@ -62,6 +62,15 @@ type OkrListItem = {
   status: string;
 };
 
+type OkrMember = {
+  userObjectId: string;
+  role: "owner" | "editor" | "viewer";
+  createdAt: string;
+  displayName?: string | null;
+  email?: string | null;
+  isSelf?: boolean;
+};
+
 type AiDraftResponse = {
   objectiveRefined: string | null;
   questions: string[];
@@ -104,6 +113,7 @@ export default function OkrDetail() {
   const { okrId } = useParams();
   const [data, setData] = useState<OkrDetail | null>(null);
   const [allOkrs, setAllOkrs] = useState<OkrListItem[]>([]);
+  const [members, setMembers] = useState<OkrMember[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [krSort, setKrSort] = useState<{ key: KrSortKey; dir: "asc" | "desc" } | null>(null);
@@ -138,6 +148,14 @@ export default function OkrDetail() {
   const [alignTargetId, setAlignTargetId] = useState("");
   const [alignBusy, setAlignBusy] = useState(false);
   const [alignDirection, setAlignDirection] = useState<"up" | "down">("up");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberRole, setMemberRole] = useState<"owner" | "editor" | "viewer">("viewer");
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberConfirm, setMemberConfirm] = useState<{
+    userObjectId: string;
+    role: "owner" | "editor" | "viewer";
+    display: string;
+  } | null>(null);
   const [alignConfirm, setAlignConfirm] = useState<{
     parentOkrId: string;
     childOkrId: string;
@@ -172,6 +190,18 @@ export default function OkrDetail() {
           return "No podes alinear un OKR consigo mismo.";
         case "cycle_detected":
           return "Esa alineacion generaria un ciclo. Elegi otro OKR.";
+        case "user_not_found":
+          return "Usuario no encontrado.";
+        case "user_ambiguous":
+          return "Usuario ambiguo. Usa un email mas preciso.";
+        case "member_exists":
+          return "Ese usuario ya es miembro del OKR.";
+        case "owner_required":
+          return "Debe quedar al menos un owner.";
+        case "forbidden":
+          return "No tenes permisos para esta accion.";
+        case "graph_unavailable":
+          return "No se pudo resolver el usuario en Graph.";
         default:
           return parsed?.message || raw;
       }
@@ -182,12 +212,26 @@ export default function OkrDetail() {
 
   const load = () => {
     if (!okrId) return;
-    Promise.all([apiGet<OkrDetail>(`/okrs/${okrId}`), apiGet<OkrListItem[]>(`/okrs`)])
-      .then(([detail, list]) => {
-        setData(detail);
-        setAllOkrs(list);
-      })
-      .catch((e) => setErr(formatApiError(e.message)));
+    Promise.allSettled([
+      apiGet<OkrDetail>(`/okrs/${okrId}`),
+      apiGet<OkrListItem[]>(`/okrs`),
+      apiGet<OkrMember[]>(`/okrs/${okrId}/members`),
+    ]).then((results) => {
+      const [detailRes, listRes, membersRes] = results;
+      if (detailRes.status === "fulfilled") {
+        setData(detailRes.value);
+      } else {
+        setErr(formatApiError(detailRes.reason?.message || "Error"));
+      }
+      if (listRes.status === "fulfilled") {
+        setAllOkrs(listRes.value);
+      }
+      if (membersRes.status === "fulfilled") {
+        setMembers(membersRes.value);
+      } else {
+        setMembers(null);
+      }
+    });
   };
 
   useEffect(() => {
@@ -218,6 +262,8 @@ export default function OkrDetail() {
   const selectableAlignTargets = allOkrs.filter(
     (okr) => okr.id.toLowerCase() !== data.id.toLowerCase() && !alignedToIds.has(okr.id.toLowerCase())
   );
+  const currentMember = members?.find((member) => member.isSelf);
+  const canManageMembersUi = currentMember?.role === "owner";
   const sortedKrs = [...data.krs].sort((a, b) => {
     if (!krSort) return 0;
     const dir = krSort.dir === "asc" ? 1 : -1;
@@ -428,6 +474,33 @@ export default function OkrDetail() {
             </div>
           </div>
         )}
+        {memberConfirm && (
+          <div style={{ ...panelStyle, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Confirmar eliminacion</div>
+            <div style={{ marginBottom: 8 }}>
+              Vas a quitar a {memberConfirm.display} ({memberConfirm.role}). Esta accion no se
+              puede deshacer. Continuar?
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setMemberConfirm(null)}>Cancelar</button>
+              <button
+                onClick={async () => {
+                  if (!okrId) return;
+                  try {
+                    await apiDelete(`/okrs/${okrId}/members/${memberConfirm.userObjectId}`);
+                    setMemberConfirm(null);
+                    load();
+                  } catch (e: any) {
+                    setMemberConfirm(null);
+                    setErr(formatApiError(e.message));
+                  }
+                }}
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        )}
         <div style={{ marginBottom: 12 }}>
           <Link to="/">{"<"} Volver</Link>
         </div>
@@ -586,6 +659,131 @@ export default function OkrDetail() {
               )}
             </div>
           </div>
+        </details>
+
+        <details id="section-members" style={{ marginBottom: 16, ...panelStyle }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>Miembros</summary>
+          {members === null && (
+            <div style={{ marginTop: 8, color: "var(--muted)" }}>
+              No tenes permisos para ver miembros.
+            </div>
+          )}
+          {Array.isArray(members) && (
+            <div style={{ marginTop: 8, display: "grid", gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Miembros actuales</div>
+                {members.length === 0 && (
+                  <div style={{ color: "var(--muted)" }}>Sin miembros.</div>
+                )}
+                {members.map((member) => {
+                  const label =
+                    member.displayName ||
+                    member.email ||
+                    `${member.userObjectId.slice(0, 8)}...`;
+                  return (
+                    <div
+                      key={member.userObjectId}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "2fr 1fr auto",
+                        gap: 8,
+                        alignItems: "center",
+                        borderBottom: "1px solid var(--border)",
+                        padding: "6px 0",
+                      }}
+                    >
+                      <div>
+                        <div>{label}</div>
+                        {member.email && (
+                          <div style={{ color: "var(--muted)", fontSize: 12 }}>{member.email}</div>
+                        )}
+                      </div>
+                      <div>
+                        {canManageMembersUi ? (
+                          <select
+                            value={member.role}
+                            onChange={async (e) => {
+                              if (!okrId) return;
+                              try {
+                                await apiPatch(`/okrs/${okrId}/members/${member.userObjectId}`, {
+                                  role: e.target.value,
+                                });
+                                load();
+                              } catch (err: any) {
+                                setErr(formatApiError(err.message));
+                              }
+                            }}
+                          >
+                            <option value="owner">owner</option>
+                            <option value="editor">editor</option>
+                            <option value="viewer">viewer</option>
+                          </select>
+                        ) : (
+                          <span>{member.role}</span>
+                        )}
+                      </div>
+                      <div>
+                        {canManageMembersUi && (
+                          <button
+                            onClick={() =>
+                              setMemberConfirm({
+                                userObjectId: member.userObjectId,
+                                role: member.role,
+                                display: label,
+                              })
+                            }
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {canManageMembersUi && (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ fontWeight: 600 }}>Agregar miembro por email</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input
+                      placeholder="email@dominio.com"
+                      value={memberEmail}
+                      onChange={(e) => setMemberEmail(e.target.value)}
+                    />
+                    <select
+                      value={memberRole}
+                      onChange={(e) => setMemberRole(e.target.value as "owner" | "editor" | "viewer")}
+                    >
+                      <option value="owner">owner</option>
+                      <option value="editor">editor</option>
+                      <option value="viewer">viewer</option>
+                    </select>
+                    <button
+                      disabled={memberBusy || !memberEmail.trim()}
+                      onClick={async () => {
+                        if (!okrId) return;
+                        setMemberBusy(true);
+                        try {
+                          await apiPost(`/okrs/${okrId}/members/by-email`, {
+                            email: memberEmail.trim(),
+                            role: memberRole,
+                          });
+                          setMemberEmail("");
+                          load();
+                        } catch (err: any) {
+                          setErr(formatApiError(err.message));
+                        } finally {
+                          setMemberBusy(false);
+                        }
+                      }}
+                    >
+                      {memberBusy ? "Agregando..." : "Agregar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </details>
 
         <div style={{ marginBottom: 16, padding: 12, border: "1px solid var(--border)" }}>
@@ -1063,6 +1261,7 @@ export default function OkrDetail() {
         </details>
         <div className="sticky-actions" style={{ marginTop: 16 }}>
           <button onClick={() => openSection("section-alignment")}>Alineacion</button>
+          <button onClick={() => openSection("section-members")}>Miembros</button>
           <button onClick={() => openSection("section-ai-kr")}>KRs (IA + manual)</button>
           <button onClick={() => openSection("section-checkin")}>Registrar check-in</button>
         </div>

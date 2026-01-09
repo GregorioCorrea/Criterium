@@ -35,6 +35,8 @@ import {
   resolveRoleForOkr,
 } from "../services/authz";
 import { buildOwnerMember, canRemoveOwner } from "../services/okrMembers";
+import { GraphUserResolver, maskEmail } from "../services/graphUserResolver";
+import { addMemberByEmail } from "../services/okrMembersByEmail";
 
 const router = Router();
 
@@ -167,16 +169,28 @@ router.delete("/:okrId/alignments/:parentOkrId", async (req, res) => {
 
 router.get("/:okrId/members", async (req, res) => {
   const okrId = req.params.okrId;
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  if (!okrOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
   const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
   if (!role || !canEdit(role)) {
     return res.status(403).json({ error: "forbidden" });
   }
   const members = await listOkrMembers(req.tenantId!, okrId);
-  res.json(members);
+  const payload = members.map((member) => ({
+    ...member,
+    isSelf: member.userObjectId.toLowerCase() === req.userId!.toLowerCase(),
+  }));
+  res.json(payload);
 });
 
 router.post("/:okrId/members", async (req, res) => {
   const okrId = req.params.okrId;
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  if (!okrOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
   const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
   if (!canManageMembers(role)) {
     return res.status(403).json({ error: "forbidden" });
@@ -201,9 +215,71 @@ router.post("/:okrId/members", async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
+router.post("/:okrId/members/by-email", async (req, res) => {
+  const okrId = req.params.okrId;
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  if (!okrOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  const { email, role: memberRole } = req.body ?? {};
+  if (!email || !memberRole) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+  if (!["owner", "editor", "viewer"].includes(String(memberRole))) {
+    return res.status(400).json({ error: "invalid_role" });
+  }
+
+  const startedAt = Date.now();
+  const resolver = new GraphUserResolver();
+  try {
+    const result = await addMemberByEmail(
+      {
+        tenantId: req.tenantId!,
+        okrId,
+        actorRole: role,
+        actorUserId: req.userId!,
+        email: String(email),
+        role: String(memberRole) as any,
+      },
+      {
+        resolver,
+        addMember: addOkrMember,
+      }
+    );
+    const latencyMs = Date.now() - startedAt;
+    console.log("[okrs] add_member_by_email", {
+      tenantId: req.tenantId,
+      okrId,
+      action: "add_member_by_email",
+      result: result.status,
+      latencyMs,
+      email: maskEmail(String(email)),
+    });
+    return res.status(result.status).json(result.body);
+  } catch (err: any) {
+    const latencyMs = Date.now() - startedAt;
+    const message = String(err?.message || "");
+    console.log("[okrs] add_member_by_email", {
+      tenantId: req.tenantId,
+      okrId,
+      action: "add_member_by_email",
+      result: "error",
+      latencyMs,
+      email: maskEmail(String(email)),
+      error: message,
+    });
+    return res.status(502).json({ error: "graph_unavailable" });
+  }
+});
+
 router.patch("/:okrId/members/:userObjectId", async (req, res) => {
   const okrId = req.params.okrId;
   const targetUserId = req.params.userObjectId;
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  if (!okrOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
   const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
   if (!canManageMembers(role)) {
     return res.status(403).json({ error: "forbidden" });
@@ -237,6 +313,10 @@ router.patch("/:okrId/members/:userObjectId", async (req, res) => {
 router.delete("/:okrId/members/:userObjectId", async (req, res) => {
   const okrId = req.params.okrId;
   const targetUserId = req.params.userObjectId;
+  const okrOk = await okrExists(req.tenantId!, okrId);
+  if (!okrOk) {
+    return res.status(404).json({ error: "okr_not_found" });
+  }
   const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
   if (!canManageMembers(role)) {
     return res.status(403).json({ error: "forbidden" });
