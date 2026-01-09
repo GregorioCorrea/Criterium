@@ -177,6 +177,16 @@ export async function deleteOkrCascade(
 
   await query(
     `
+    DELETE FROM dbo.OkrAlignments
+    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+      AND (parent_okr_id = CAST(@okrId as uniqueidentifier)
+        OR child_okr_id = CAST(@okrId as uniqueidentifier))
+    `,
+    { tenantId, okrId }
+  );
+
+  await query(
+    `
     DELETE FROM dbo.okrs
     WHERE id = CAST(@okrId as uniqueidentifier)
       AND tenant_id = CAST(@tenantId as uniqueidentifier)

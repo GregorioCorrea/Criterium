@@ -137,6 +137,7 @@ export default function OkrDetail() {
   } | null>(null);
   const [alignTargetId, setAlignTargetId] = useState("");
   const [alignBusy, setAlignBusy] = useState(false);
+  const [alignDirection, setAlignDirection] = useState<"up" | "down">("up");
   const [alignConfirm, setAlignConfirm] = useState<{
     parentOkrId: string;
     childOkrId: string;
@@ -548,13 +549,22 @@ export default function OkrDetail() {
                     </option>
                   ))}
                 </select>
+                <select
+                  value={alignDirection}
+                  onChange={(e) => setAlignDirection(e.target.value as "up" | "down")}
+                >
+                  <option value="up">Contribuye a (up)</option>
+                  <option value="down">Recibe contribucion (down)</option>
+                </select>
                 <button
                   disabled={alignBusy || !alignTargetId}
                   onClick={async () => {
                     if (!alignTargetId) return;
                     setAlignBusy(true);
                     try {
-                      await apiPost(`/okrs/${data.id}/alignments`, { targetOkrId: alignTargetId });
+                      const childOkrId = alignDirection === "up" ? data.id : alignTargetId;
+                      const parentOkrId = alignDirection === "up" ? alignTargetId : data.id;
+                      await apiPost(`/okrs/${childOkrId}/alignments`, { targetOkrId: parentOkrId });
                       setAlignTargetId("");
                       load();
                     } catch (e: any) {
@@ -567,6 +577,13 @@ export default function OkrDetail() {
                   {alignBusy ? "Agregando..." : "Agregar alineacion"}
                 </button>
               </div>
+              {alignTargetId && (
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                  {alignDirection === "up"
+                    ? `"${data.objective}" contribuye a "${selectableAlignTargets.find((o) => o.id === alignTargetId)?.objective ?? ""}".`
+                    : `"${selectableAlignTargets.find((o) => o.id === alignTargetId)?.objective ?? ""}" contribuye a "${data.objective}".`}
+                </div>
+              )}
             </div>
           </div>
         </details>

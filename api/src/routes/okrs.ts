@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { requireTenant } from "../middleware/tenantContext";
-import { listOkrsWithSummary } from "../repos/okrBoardRepo";
+import { listOkrsWithSummary, listOkrsWithSummaryForUser } from "../repos/okrBoardRepo";
 import { getOkrDetail } from "../repos/okrDetailRepo";
 import { createOkr, deleteOkrCascade, getOkrDeleteInfo, okrExists } from "../repos/okrRepo";
 import { getOkrInsightsByOkrId } from "../repos/insightsRepo";
@@ -17,18 +17,44 @@ import {
   removeAlignment,
 } from "../repos/okrAlignmentRepo";
 import { validateAlignmentRules } from "../services/okrAlignment";
+import {
+  addOkrMember,
+  countOkrOwners,
+  deleteOkrMember,
+  getOkrMember,
+  listOkrMembers,
+  updateOkrMemberRole,
+} from "../repos/okrMembersRepo";
+import {
+  canDelete,
+  canEdit,
+  canManageMembers,
+  canView,
+  ensureRoleForWrite,
+  getAuthzMode,
+  resolveRoleForOkr,
+} from "../services/authz";
+import { buildOwnerMember, canRemoveOwner } from "../services/okrMembers";
 
 const router = Router();
 
 router.use(requireAuth, requireTenant);
 
 router.get("/", async (req, res) => {
-  const okrs = await listOkrsWithSummary(req.tenantId!);
+  const mode = getAuthzMode();
+  const okrs =
+    mode === "members_only"
+      ? await listOkrsWithSummaryForUser(req.tenantId!, req.userId!)
+      : await listOkrsWithSummary(req.tenantId!);
   res.json(okrs);
 });
 
 router.get("/:okrId/delete-info", async (req, res) => {
   const okrId = req.params.okrId;
+  const role = await resolveRoleForOkr(req.tenantId!, okrId, req.userId!);
+  if (!canView(role, getAuthzMode())) {
+    return res.status(403).json({ error: "forbidden" });
+  }
   const info = await getOkrDeleteInfo(req.tenantId!, okrId);
   if (!info) {
     return res.status(404).json({ error: "okr_not_found" });
@@ -40,6 +66,10 @@ router.get("/:okrId/delete-info", async (req, res) => {
 router.delete("/:okrId", async (req, res, next) => {
   const okrId = req.params.okrId;
   try {
+    const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+    if (!canDelete(role)) {
+      return res.status(403).json({ error: "forbidden" });
+    }
     const info = await getOkrDeleteInfo(req.tenantId!, okrId);
     if (!info) {
       return res.status(404).json({ error: "okr_not_found" });
@@ -59,6 +89,10 @@ router.delete("/:okrId", async (req, res, next) => {
 
 router.get("/:okrId", async (req, res) => {
   const okrId = req.params.okrId;
+  const role = await resolveRoleForOkr(req.tenantId!, okrId, req.userId!);
+  if (!canView(role, getAuthzMode())) {
+    return res.status(403).json({ error: "forbidden" });
+  }
   const detail = await getOkrDetail(req.tenantId!, okrId);
   if (!detail) {
     return res.status(404).json({ error: "okr_not_found" });
@@ -68,6 +102,10 @@ router.get("/:okrId", async (req, res) => {
 
 router.get("/:okrId/alignments", async (req, res) => {
   const okrId = req.params.okrId;
+  const role = await resolveRoleForOkr(req.tenantId!, okrId, req.userId!);
+  if (!canView(role, getAuthzMode())) {
+    return res.status(403).json({ error: "forbidden" });
+  }
   const okrOk = await okrExists(req.tenantId!, okrId);
   if (!okrOk) {
     return res.status(404).json({ error: "okr_not_found" });
@@ -81,6 +119,10 @@ router.get("/:okrId/alignments", async (req, res) => {
 
 router.post("/:okrId/alignments", async (req, res) => {
   const okrId = req.params.okrId;
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  if (!canEdit(role)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
   const { targetOkrId } = req.body ?? {};
   if (!targetOkrId) {
     return res.status(400).json({ error: "missing_fields" });
@@ -110,6 +152,10 @@ router.post("/:okrId/alignments", async (req, res) => {
 router.delete("/:okrId/alignments/:parentOkrId", async (req, res) => {
   const okrId = req.params.okrId;
   const parentOkrId = req.params.parentOkrId;
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  if (!canEdit(role)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
   console.log("[okrs] alignment remove", {
     tenantId: req.tenantId,
     parentOkrId,
@@ -119,8 +165,106 @@ router.delete("/:okrId/alignments/:parentOkrId", async (req, res) => {
   res.json({ ok: true });
 });
 
+router.get("/:okrId/members", async (req, res) => {
+  const okrId = req.params.okrId;
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  if (!role || !canEdit(role)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  const members = await listOkrMembers(req.tenantId!, okrId);
+  res.json(members);
+});
+
+router.post("/:okrId/members", async (req, res) => {
+  const okrId = req.params.okrId;
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  if (!canManageMembers(role)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  const { userObjectId, role: memberRole } = req.body ?? {};
+  if (!userObjectId || !memberRole) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+  if (!["owner", "editor", "viewer"].includes(String(memberRole))) {
+    return res.status(400).json({ error: "invalid_role" });
+  }
+  const result = await addOkrMember({
+    tenantId: req.tenantId!,
+    okrId,
+    userObjectId: String(userObjectId),
+    role: String(memberRole) as any,
+    createdBy: req.userId,
+  });
+  if (result === "exists") {
+    return res.status(409).json({ error: "member_exists" });
+  }
+  res.status(201).json({ ok: true });
+});
+
+router.patch("/:okrId/members/:userObjectId", async (req, res) => {
+  const okrId = req.params.okrId;
+  const targetUserId = req.params.userObjectId;
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  if (!canManageMembers(role)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  const { role: memberRole } = req.body ?? {};
+  if (!memberRole) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+  if (!["owner", "editor", "viewer"].includes(String(memberRole))) {
+    return res.status(400).json({ error: "invalid_role" });
+  }
+  const targetMember = await getOkrMember(req.tenantId!, okrId, targetUserId);
+  if (!targetMember) {
+    return res.status(404).json({ error: "member_not_found" });
+  }
+  if (targetMember.role === "owner" && memberRole !== "owner") {
+    const ownerCount = await countOkrOwners(req.tenantId!, okrId);
+    if (!canRemoveOwner(ownerCount, targetMember.role)) {
+      return res.status(400).json({ error: "owner_required" });
+    }
+  }
+  await updateOkrMemberRole({
+    tenantId: req.tenantId!,
+    okrId,
+    userObjectId: targetUserId,
+    role: String(memberRole) as any,
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/:okrId/members/:userObjectId", async (req, res) => {
+  const okrId = req.params.okrId;
+  const targetUserId = req.params.userObjectId;
+  const role = await ensureRoleForWrite(req.tenantId!, okrId, req.userId!);
+  if (!canManageMembers(role)) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  const targetMember = await getOkrMember(req.tenantId!, okrId, targetUserId);
+  if (!targetMember) {
+    return res.status(404).json({ error: "member_not_found" });
+  }
+  if (targetMember.role === "owner") {
+    const ownerCount = await countOkrOwners(req.tenantId!, okrId);
+    if (!canRemoveOwner(ownerCount, targetMember.role)) {
+      return res.status(400).json({ error: "owner_required" });
+    }
+  }
+  await deleteOkrMember({
+    tenantId: req.tenantId!,
+    okrId,
+    userObjectId: targetUserId,
+  });
+  res.json({ ok: true });
+});
+
 router.get("/:okrId/insights", async (req, res) => {
   const okrId = req.params.okrId;
+  const role = await resolveRoleForOkr(req.tenantId!, okrId, req.userId!);
+  if (!canView(role, getAuthzMode())) {
+    return res.status(403).json({ error: "forbidden" });
+  }
   const insight = await getOkrInsightsByOkrId(req.tenantId!, okrId);
   if (!insight) {
     return res.status(404).json({ error: "okr_insights_not_found" });
@@ -130,6 +274,7 @@ router.get("/:okrId/insights", async (req, res) => {
 
 router.post("/", async (req, res) => {
   const okr = await createOkr(req.tenantId!, req.body);
+  await addOkrMember(buildOwnerMember({ tenantId: req.tenantId!, okrId: okr.id, userObjectId: req.userId! }));
   await ensureInitialOkrInsights(req.tenantId!, okr.id);
   res.status(201).json(okr);
 });
@@ -181,6 +326,7 @@ router.post("/with-krs", async (req, res) => {
   }
 
   const okr = await createOkr(req.tenantId!, { objective, fromDate, toDate });
+  await addOkrMember(buildOwnerMember({ tenantId: req.tenantId!, okrId: okr.id, userObjectId: req.userId! }));
   await ensureInitialOkrInsights(req.tenantId!, okr.id);
 
   const createdKrs = [];
