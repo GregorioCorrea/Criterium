@@ -26,10 +26,18 @@ export async function getGraphAccessToken(tenantId: string): Promise<string> {
   const clientId = process.env.GRAPH_CLIENT_ID;
   const clientSecret = process.env.GRAPH_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
+    console.log("[graph] credentials missing", {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+    });
     throw new Error("graph_credentials_missing");
   }
 
   const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  console.log("[graph] token authority", {
+    tenantId,
+    tokenUrl: `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+  });
   const body = new URLSearchParams();
   body.set("client_id", clientId);
   body.set("client_secret", clientSecret);

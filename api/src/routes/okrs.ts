@@ -256,6 +256,14 @@ router.post("/:okrId/members/by-email", async (req, res) => {
       latencyMs,
       email: maskEmail(String(email)),
     });
+    if (result.status === 201) {
+      console.log("[okrs] add_member_by_email resolved", {
+        tenantId: req.tenantId,
+        okrId,
+        actorUserId: req.userId,
+        memberUserObjectId: result.body.userObjectId,
+      });
+    }
     return res.status(result.status).json(result.body);
   } catch (err: any) {
     const latencyMs = Date.now() - startedAt;
@@ -298,6 +306,13 @@ router.patch("/:okrId/members/:userObjectId", async (req, res) => {
   if (targetMember.role === "owner" && memberRole !== "owner") {
     const ownerCount = await countOkrOwners(req.tenantId!, okrId);
     if (!canRemoveOwner(ownerCount, targetMember.role)) {
+      console.log("[okrs] owner_required", {
+        tenantId: req.tenantId,
+        okrId,
+        targetUserId,
+        action: "update_member_role",
+        ownerCount,
+      });
       return res.status(400).json({ error: "owner_required" });
     }
   }
@@ -328,6 +343,13 @@ router.delete("/:okrId/members/:userObjectId", async (req, res) => {
   if (targetMember.role === "owner") {
     const ownerCount = await countOkrOwners(req.tenantId!, okrId);
     if (!canRemoveOwner(ownerCount, targetMember.role)) {
+      console.log("[okrs] owner_required", {
+        tenantId: req.tenantId,
+        okrId,
+        targetUserId,
+        action: "delete_member",
+        ownerCount,
+      });
       return res.status(400).json({ error: "owner_required" });
     }
   }

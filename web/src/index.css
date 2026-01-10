@@ -245,6 +245,34 @@ button:hover {
   background: #f59e0b;
 }
 
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.role-badge--owner {
+  border-color: #2ea56a;
+  color: #2ea56a;
+}
+
+.role-badge--editor {
+  border-color: #3aa6ff;
+  color: #3aa6ff;
+}
+
+.role-badge--viewer {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
 @media (max-width: 900px) {
   .form-grid-4,
   .form-grid-5,

@@ -509,6 +509,11 @@ export default function OkrDetail() {
           <h2>{data.objective}</h2>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <AiStatus />
+            {currentMember?.role && (
+              <span className={`role-badge role-badge--${currentMember.role}`}>
+                {currentMember.role}
+              </span>
+            )}
             <button onClick={handleDeleteOkr}>Eliminar OKR</button>
           </div>
         </div>
