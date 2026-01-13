@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query, queryTx, withTransaction } from "../db";
 
 export type OKRRow = {
   id: string;
@@ -129,68 +129,86 @@ export async function deleteOkrCascade(
   tenantId: string,
   okrId: string
 ): Promise<void> {
-  await query(
-    `
-    DELETE FROM dbo.kr_checkins
-    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      AND key_result_id IN (
-        SELECT id
-        FROM dbo.key_results
-        WHERE okr_id = CAST(@okrId as uniqueidentifier)
-      )
-    `,
-    { tenantId, okrId }
-  );
+  await withTransaction(async (tx) => {
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.kr_checkins
+      WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        AND key_result_id IN (
+          SELECT id
+          FROM dbo.key_results
+          WHERE okr_id = CAST(@okrId as uniqueidentifier)
+        )
+      `,
+      { tenantId, okrId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.KrInsights
-    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      AND kr_id IN (
-        SELECT id
-        FROM dbo.key_results
-        WHERE okr_id = CAST(@okrId as uniqueidentifier)
-      )
-    `,
-    { tenantId, okrId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.KrInsights
+      WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        AND kr_id IN (
+          SELECT id
+          FROM dbo.key_results
+          WHERE okr_id = CAST(@okrId as uniqueidentifier)
+        )
+      `,
+      { tenantId, okrId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.key_results
-    WHERE okr_id = CAST(@okrId as uniqueidentifier)
-      AND okr_id IN (
-        SELECT id FROM dbo.okrs WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      )
-    `,
-    { tenantId, okrId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.key_results
+      WHERE okr_id = CAST(@okrId as uniqueidentifier)
+        AND okr_id IN (
+          SELECT id FROM dbo.okrs WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        )
+      `,
+      { tenantId, okrId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.OkrInsights
-    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      AND okr_id = CAST(@okrId as uniqueidentifier)
-    `,
-    { tenantId, okrId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.OkrInsights
+      WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        AND okr_id = CAST(@okrId as uniqueidentifier)
+      `,
+      { tenantId, okrId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.OkrAlignments
-    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      AND (parent_okr_id = CAST(@okrId as uniqueidentifier)
-        OR child_okr_id = CAST(@okrId as uniqueidentifier))
-    `,
-    { tenantId, okrId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.OkrAlignments
+      WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        AND (parent_okr_id = CAST(@okrId as uniqueidentifier)
+          OR child_okr_id = CAST(@okrId as uniqueidentifier))
+      `,
+      { tenantId, okrId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.okrs
-    WHERE id = CAST(@okrId as uniqueidentifier)
-      AND tenant_id = CAST(@tenantId as uniqueidentifier)
-    `,
-    { tenantId, okrId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.OkrMembers
+      WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        AND okr_id = CAST(@okrId as uniqueidentifier)
+      `,
+      { tenantId, okrId }
+    );
+
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.okrs
+      WHERE id = CAST(@okrId as uniqueidentifier)
+        AND tenant_id = CAST(@tenantId as uniqueidentifier)
+      `,
+      { tenantId, okrId }
+    );
+  });
 }

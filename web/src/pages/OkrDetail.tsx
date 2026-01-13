@@ -174,6 +174,9 @@ export default function OkrDetail() {
   } | null>(null);
 
   const formatApiError = (message: string): string => {
+    if (/failed to fetch|networkerror|network error/i.test(message)) {
+      return "No se pudo conectar al servidor. Intenta nuevamente.";
+    }
     const raw = message.replace(/^API \d+:\s*/i, "");
     try {
       const parsed = JSON.parse(raw);
@@ -207,6 +210,10 @@ export default function OkrDetail() {
           return "No tenes acceso a este OKR.";
         case "kr_already_completed":
           return "El KR ya alcanzo el 100% y no acepta mas check-ins.";
+        case "value_negative_not_allowed":
+          return "El valor no puede ser negativo para esta metrica.";
+        case "checkin_date_future":
+          return "La fecha del check-in no puede ser futura.";
         case "forbidden":
           return "No tenes permisos para esta accion.";
         case "graph_unavailable":
@@ -874,6 +881,11 @@ export default function OkrDetail() {
         </div>
 
         <h3>Key Results</h3>
+        {data.krs.length === 0 && (
+          <div style={{ color: "var(--muted)", marginBottom: 8 }}>
+            Este OKR todavia no tiene Resultados Clave.
+          </div>
+        )}
         <div className="table-wrap">
           <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead>
@@ -1291,6 +1303,11 @@ export default function OkrDetail() {
               onChange={(e) => setCheckinForm({ ...checkinForm, comment: e.target.value })}
             />
           </div>
+          {selectedKr && selectedKr.health === "no_checkins" && (
+            <div style={{ marginTop: 6, color: "var(--muted)" }}>
+              Todavia no hay check-ins. Registra el primero.
+            </div>
+          )}
           {unitLabel && (
             <div style={{ marginTop: 6, color: "var(--muted)" }}>
               Unidad de la metrica: {unitLabel}

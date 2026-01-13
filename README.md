@@ -53,3 +53,11 @@ Luego configurás el Web App para que use Node 20 y desplegás el contenido de a
 ## Notas
 - Inicialmente el almacenamiento es en memoria. El siguiente paso es conectar Azure SQL usando el schema.sql.
 - Autenticación con Entra ID y Graph se agregan en la siguiente iteración.
+
+## Pilot hardening (enero 2026)
+- Mensajes de error unificados en messagebox y toasts para acciones exitosas.
+- Empty states claros para board, OKR sin KRs y KR sin check-ins.
+- Logs estructurados de acciones (okr/kr/checkin/members/alignment) y denegaciones authz.
+- Timeouts y fallback seguro para Azure OpenAI y Microsoft Graph.
+- Deletes con transaccion (OKR/KR) para evitar datos huerfanos.
+- Validaciones defensivas (check-ins negativos no permitidos segun unidad; fecha futura bloqueada si se envia).

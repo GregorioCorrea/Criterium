@@ -4,6 +4,7 @@ type GraphToken = {
 };
 
 const tokenCache = new Map<string, GraphToken>();
+const GRAPH_TIMEOUT_MS = Number(process.env.GRAPH_TIMEOUT_MS || 8000);
 
 export function getGraphTenantId(requestTenantId: string): string {
   return process.env.GRAPH_TENANT_ID || requestTenantId;
@@ -15,6 +16,16 @@ export function clearGraphTokenCache(): void {
 
 function nowMs(): number {
   return Date.now();
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function getGraphAccessToken(tenantId: string): Promise<string> {
@@ -44,11 +55,15 @@ export async function getGraphAccessToken(tenantId: string): Promise<string> {
   body.set("scope", "https://graph.microsoft.com/.default");
   body.set("grant_type", "client_credentials");
 
-  const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const res = await fetchWithTimeout(
+    tokenUrl,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    },
+    GRAPH_TIMEOUT_MS
+  );
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`graph_token_error:${res.status}:${text}`);
@@ -62,12 +77,16 @@ export async function getGraphAccessToken(tenantId: string): Promise<string> {
 
 export async function graphGet<T>(tenantId: string, path: string): Promise<T> {
   const accessToken = await getGraphAccessToken(tenantId);
-  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const res = await fetchWithTimeout(
+    `https://graph.microsoft.com/v1.0${path}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
     },
-  });
+    GRAPH_TIMEOUT_MS
+  );
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`graph_request_error:${res.status}:${text}`);

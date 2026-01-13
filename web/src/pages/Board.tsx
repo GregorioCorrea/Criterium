@@ -62,13 +62,20 @@ export default function Board() {
   const [authzMode, setAuthzMode] = useState<"tenant_open" | "members_only" | null>(null);
   const navigate = useNavigate();
 
+  const formatApiError = (message: string): string => {
+    if (/failed to fetch|networkerror|network error/i.test(message)) {
+      return "No se pudo conectar al servidor. Intenta nuevamente.";
+    }
+    return message;
+  };
+
   useEffect(() => {
     Promise.allSettled([apiGet<OkrBoard[]>("/okrs"), apiGet<{ authzMode?: string }>("/whoami")])
       .then(([okrsRes, whoamiRes]) => {
         if (okrsRes.status === "fulfilled") {
           setData(okrsRes.value);
         } else {
-          setErr(okrsRes.reason?.message || "Error");
+          setErr(formatApiError(okrsRes.reason?.message || "Error"));
         }
         if (whoamiRes.status === "fulfilled") {
           const mode = whoamiRes.value?.authzMode;
@@ -187,7 +194,7 @@ export default function Board() {
             {groupByQuarter ? "Quitar agrupacion" : "Agrupar por trimestre"}
           </button>
         </div>
-        {authzMode === "members_only" && data.length === 0 ? (
+        {data.length === 0 ? (
           <div
             style={{
               marginTop: 24,
@@ -196,9 +203,21 @@ export default function Board() {
               borderRadius: 12,
               background: "var(--panel)",
               color: "var(--muted)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
             }}
           >
-            Todavia no tenes OKRs asignados. Pedi que te agreguen.
+            <div>
+              {authzMode === "members_only"
+                ? "Todavia no tenes OKRs asignados. Pedi que te agreguen."
+                : "Todavia no hay OKRs. Crea el primero para empezar."}
+            </div>
+            {authzMode !== "members_only" && (
+              <button onClick={() => setShowNew(true)}>Crear OKR</button>
+            )}
           </div>
         ) : (
         <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>

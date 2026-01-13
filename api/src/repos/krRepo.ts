@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query, queryTx, withTransaction } from "../db";
 import { computeHealth, computeProgressPct } from "../domain/krHealth";
 import { KrRisk } from "../domain/insights";
 
@@ -227,31 +227,36 @@ export async function deleteKrCascade(
   tenantId: string,
   krId: string
 ): Promise<void> {
-  await query(
-    `
-    DELETE FROM dbo.kr_checkins
-    WHERE key_result_id = CAST(@krId as uniqueidentifier)
-    `,
-    { tenantId, krId }
-  );
+  await withTransaction(async (tx) => {
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.kr_checkins
+      WHERE key_result_id = CAST(@krId as uniqueidentifier)
+      `,
+      { tenantId, krId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.KrInsights
-    WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      AND kr_id = CAST(@krId as uniqueidentifier)
-    `,
-    { tenantId, krId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.KrInsights
+      WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        AND kr_id = CAST(@krId as uniqueidentifier)
+      `,
+      { tenantId, krId }
+    );
 
-  await query(
-    `
-    DELETE FROM dbo.key_results
-    WHERE id = CAST(@krId as uniqueidentifier)
-      AND okr_id IN (
-        SELECT id FROM dbo.okrs WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
-      )
-    `,
-    { tenantId, krId }
-  );
+    await queryTx(
+      tx,
+      `
+      DELETE FROM dbo.key_results
+      WHERE id = CAST(@krId as uniqueidentifier)
+        AND okr_id IN (
+          SELECT id FROM dbo.okrs WHERE tenant_id = CAST(@tenantId as uniqueidentifier)
+        )
+      `,
+      { tenantId, krId }
+    );
+  });
 }

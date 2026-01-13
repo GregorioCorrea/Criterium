@@ -5,6 +5,7 @@ const AI_ENABLED = (process.env.INSIGHTS_AI_ENABLED || "").toLowerCase() === "tr
 const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
 const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT;
 const API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2025-01-01-preview";
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 12000);
 
 let client: AzureOpenAI | null = null;
 
@@ -65,4 +66,21 @@ export async function withRetry<T>(fn: () => Promise<T>, retries = 1): Promise<T
     }
   }
   throw lastErr;
+}
+
+export async function withTimeout<T>(fn: () => Promise<T>, timeoutMs = AI_TIMEOUT_MS): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  return new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("ai_timeout")), timeoutMs);
+    fn()
+      .then((value) => resolve(value))
+      .catch((err) => reject(err))
+      .finally(() => {
+        if (timer) clearTimeout(timer);
+      });
+  });
+}
+
+export function getAiTimeoutMs(): number {
+  return AI_TIMEOUT_MS;
 }

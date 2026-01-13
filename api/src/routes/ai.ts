@@ -9,7 +9,7 @@ import {
   ruleValidateKr,
   ruleValidateOkr,
 } from "../services/aiOkr";
-import { getAiClient, getAiDeployment, isAiEnabled, withRetry } from "../services/aiClient";
+import { getAiClient, getAiDeployment, getAiTimeoutMs, isAiEnabled, withRetry, withTimeout } from "../services/aiClient";
 import { computeOkrFingerprint } from "../services/validationFingerprint";
 
 const router = Router();
@@ -28,14 +28,18 @@ router.get("/status", async (_req, res) => {
   }
 
   try {
-    await withRetry(
+    await withTimeout(
       () =>
-        client.chat.completions.create({
-          model: deployment,
-          messages: [{ role: "developer", content: "Responde solo: OK" }],
-          max_completion_tokens: 16,
-        }),
-      0
+        withRetry(
+          () =>
+            client.chat.completions.create({
+              model: deployment,
+              messages: [{ role: "developer", content: "Responde solo: OK" }],
+              max_completion_tokens: 16,
+            }),
+          0
+        ),
+      getAiTimeoutMs()
     );
 
     return res.json({
@@ -65,7 +69,9 @@ router.use(requireAuth, requireTenant);
 router.post("/okr/draft", async (req, res) => {
   const { objective, fromDate, toDate, context, existingKrTitles, answers } = req.body ?? {};
   if (!objective || !fromDate || !toDate) {
-    return res.status(400).json({ error: "missing_fields" });
+    return res
+      .status(400)
+      .json({ error: "missing_fields", code: "missing_fields", message: "Faltan campos obligatorios." });
   }
 
   console.log("[ai] draft okr request", {
@@ -106,7 +112,9 @@ router.post("/okr/validate", async (req, res) => {
   const { objective, fromDate, toDate, krs, lockedObjective, lockedDates, resolvedIssueCodes } =
     req.body ?? {};
   if (!objective || !fromDate || !toDate || !Array.isArray(krs)) {
-    return res.status(400).json({ error: "missing_fields" });
+    return res
+      .status(400)
+      .json({ error: "missing_fields", code: "missing_fields", message: "Faltan campos obligatorios." });
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -148,14 +156,18 @@ router.post("/okr/validate", async (req, res) => {
 router.post("/okr/fix", async (req, res) => {
   const { objective, fromDate, toDate, krs, issues } = req.body ?? {};
   if (!objective || !fromDate || !toDate || !Array.isArray(krs) || !Array.isArray(issues)) {
-    return res.status(400).json({ error: "missing_fields" });
+    return res
+      .status(400)
+      .json({ error: "missing_fields", code: "missing_fields", message: "Faltan campos obligatorios." });
   }
 
   const today = new Date().toISOString().slice(0, 10);
 
   const ai = await aiFixOkr({ today, objective, fromDate, toDate, krs, issues });
   if (!ai) {
-    return res.status(502).json({ error: "ai_unavailable" });
+    return res
+      .status(502)
+      .json({ error: "ai_unavailable", code: "ai_unavailable", message: "IA no disponible." });
   }
   res.json(ai);
 });
@@ -163,7 +175,9 @@ router.post("/okr/fix", async (req, res) => {
 router.post("/kr/validate", async (req, res) => {
   const { title, metricName, unit, targetValue } = req.body ?? {};
   if (!title) {
-    return res.status(400).json({ error: "missing_fields" });
+    return res
+      .status(400)
+      .json({ error: "missing_fields", code: "missing_fields", message: "Faltan campos obligatorios." });
   }
 
   const ai = await aiValidateKr({ title, metricName, unit, targetValue });

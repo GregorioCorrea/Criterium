@@ -44,6 +44,9 @@ type Props = {
 };
 
 function formatApiError(message: string): string {
+  if (/failed to fetch|networkerror|network error/i.test(message)) {
+    return "No se pudo conectar al servidor. Intenta nuevamente.";
+  }
   const raw = message.replace(/^API \d+:\s*/i, "");
   try {
     const parsed = JSON.parse(raw);

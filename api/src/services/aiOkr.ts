@@ -1,4 +1,4 @@
-import { getAiClient, getAiDeployment, safeParseJson, withRetry } from "./aiClient";
+import { getAiClient, getAiDeployment, getAiTimeoutMs, safeParseJson, withRetry, withTimeout } from "./aiClient";
 import { loadAiPromptConfig, loadPrompt } from "./aiPromptLoader";
 
 export type AiDraftOkrOutput = {
@@ -87,6 +87,7 @@ async function runChatJson(
   const ai = getAiClient();
   if (!ai || !AI_DEPLOYMENT) return null;
   const inputJson = JSON.stringify(input);
+  const startedAt = Date.now();
   console.log("[ai] chat request", {
     promptName,
     promptChars: prompt.length,
@@ -96,40 +97,67 @@ async function runChatJson(
     maxTokens,
     reasoningEffort: reasoningEffort ?? "default",
   });
-  const result = await withRetry(() => {
-    const payload: any = {
+  try {
+    const result = await withTimeout(
+      () =>
+        withRetry(() => {
+          const payload: any = {
+            model: AI_DEPLOYMENT,
+            messages: [
+              { role: "developer", content: prompt },
+              { role: "user", content: inputJson },
+            ],
+            max_completion_tokens: maxTokens,
+            response_format: { type: "json_object" },
+          };
+          const supportsReasoning = AI_DEPLOYMENT.toLowerCase().startsWith("gpt-5");
+          if (reasoningEffort && supportsReasoning) {
+            payload.reasoning = { effort: reasoningEffort };
+          }
+          return ai.chat.completions.create(payload);
+        }, 1),
+      getAiTimeoutMs()
+    );
+    const choice = result.choices[0];
+    const message = choice?.message;
+    const content = extractMessageContent(message);
+    console.log("[ai] chat response meta", {
+      responseId: (result as any)?.id,
+      finishReason: choice?.finish_reason,
+      usage: result.usage,
+      contentLength: content.length,
+      contentPreview: content.slice(0, 600),
+      messageRole: message?.role,
+      refusal: message?.refusal,
+      contentType: typeof message?.content,
+      contentRawPreview: JSON.stringify(message?.content)?.slice(0, 600),
+    });
+    console.log("[event] ai_call", {
+      action: "ai_call",
       model: AI_DEPLOYMENT,
-      messages: [
-        { role: "developer", content: prompt },
-        { role: "user", content: inputJson },
-      ],
-      max_completion_tokens: maxTokens,
-      response_format: { type: "json_object" },
-    };
-    const supportsReasoning = AI_DEPLOYMENT.toLowerCase().startsWith("gpt-5");
-    if (reasoningEffort && supportsReasoning) {
-      payload.reasoning = { effort: reasoningEffort };
+      promptName,
+      latencyMs: Date.now() - startedAt,
+      result: "success",
+    });
+    if (!content) {
+      console.warn("[ai] chat empty content");
     }
-    return ai.chat.completions.create(payload);
-  }, 1);
-  const choice = result.choices[0];
-  const message = choice?.message;
-  const content = extractMessageContent(message);
-  console.log("[ai] chat response meta", {
-    responseId: (result as any)?.id,
-    finishReason: choice?.finish_reason,
-    usage: result.usage,
-    contentLength: content.length,
-    contentPreview: content.slice(0, 600),
-    messageRole: message?.role,
-    refusal: message?.refusal,
-    contentType: typeof message?.content,
-    contentRawPreview: JSON.stringify(message?.content)?.slice(0, 600),
-  });
-  if (!content) {
-    console.warn("[ai] chat empty content");
+    return content;
+  } catch (err: any) {
+    console.warn("[ai] chat failed", {
+      promptName,
+      message: err?.message,
+    });
+    console.log("[event] ai_call", {
+      action: "ai_call",
+      model: AI_DEPLOYMENT,
+      promptName,
+      latencyMs: Date.now() - startedAt,
+      result: "fail",
+      error: err?.message,
+    });
+    throw err;
   }
-  return content;
 }
 
 export async function aiDraftOkr(input: {

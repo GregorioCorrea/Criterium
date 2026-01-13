@@ -4,7 +4,6 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 export async function apiGet<T>(path: string): Promise<T> {
   const token = await getTeamsToken();
-  console.log("TEAMS TOKEN:", token);
 
   const res = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
