@@ -3,6 +3,7 @@ import { apiGet } from "../api";
 import { Link, useNavigate } from "react-router-dom";
 import AiStatus from "../components/AiStatus";
 import NewOkrModal from "../components/NewOkrModal";
+import MessageBox from "../components/MessageBox";
 
 type OkrBoard = {
   id: string;
@@ -76,7 +77,9 @@ export default function Board() {
       });
   }, []);
 
-  if (err) return <pre>{err}</pre>;
+  if (err) {
+    return <MessageBox title="Error" message={err} onClose={() => setErr(null)} />;
+  }
 
   const healthOrder: Record<string, number> = {
     no_target: 0,

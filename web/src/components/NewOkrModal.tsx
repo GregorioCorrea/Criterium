@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { apiPost } from "../api";
 import AiStatus from "./AiStatus";
 import Modal from "./Modal";
+import MessageBox from "./MessageBox";
 
 type DraftResponse = {
   objectiveRefined: string | null;
@@ -45,7 +46,7 @@ function formatApiError(message: string): string {
   const raw = message.replace(/^API \d+:\s*/i, "");
   try {
     const parsed = JSON.parse(raw);
-    const code = parsed?.error;
+    const code = parsed?.code || parsed?.error;
     switch (code) {
       case "missing_fields":
         return "Completa todos los campos obligatorios.";
@@ -55,6 +56,10 @@ function formatApiError(message: string): string {
         return "Hay issues que bloquean la creacion. Revisa las sugerencias.";
       case "kr_target_missing":
         return "Cada KR necesita un target numerico.";
+      case "not_member":
+        return "No tenes acceso a este OKR.";
+      case "forbidden":
+        return "No tenes permisos para esta accion.";
       default:
         return parsed?.message || raw;
     }
@@ -434,11 +439,14 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
 
   return (
     <Modal title="Nuevo OKR" onClose={onClose} dirty={dirty}>
+      {err && <MessageBox title="Error" message={err} onClose={() => setErr(null)} />}
+      {formMessage && (
+        <MessageBox title="Aviso" message={formMessage} onClose={() => setFormMessage(null)} />
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div />
         <AiStatus />
       </div>
-      {err && <pre style={{ color: "crimson" }}>{err}</pre>}
 
       <div style={{ display: "grid", gap: 16, paddingBottom: 64 }}>
         <div style={{ padding: 8, border: "1px solid #2a3440", borderRadius: 8 }}>
@@ -634,20 +642,6 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         )}
       </div>
       <div className="sticky-actions">
-        {formMessage && (
-          <div
-            ref={messageRef}
-            style={{
-              marginRight: "auto",
-              padding: "8px 10px",
-              border: "1px solid #5a2b2b",
-              color: "#f5b4b4",
-              borderRadius: 8,
-            }}
-          >
-            {formMessage}
-          </div>
-        )}
         {hasHigh && (
           <button
             disabled={busy}

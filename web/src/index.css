@@ -148,6 +148,16 @@ button:hover {
   color: var(--text);
 }
 
+.message-box-panel {
+  width: min(520px, 92vw);
+}
+
+.message-box-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

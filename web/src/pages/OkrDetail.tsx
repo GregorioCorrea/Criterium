@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
+import MessageBox from "../components/MessageBox";
 
 type AlignedOkr = {
   id: string;
@@ -314,7 +315,6 @@ export default function OkrDetail() {
   const selectableAlignTargets = allOkrs.filter(
     (okr) => okr.id.toLowerCase() !== data.id.toLowerCase() && !alignedToIds.has(okr.id.toLowerCase())
   );
-  const currentMember = members?.find((member) => member.isSelf);
   const myRole = data.myRole ?? "viewer";
   const canManageMembersUi = myRole === "owner";
   const canEditUi = myRole === "owner" || myRole === "editor";
@@ -459,13 +459,9 @@ export default function OkrDetail() {
   return (
     <div className="page">
       <div className="page-content">
-        {err && (
-          <div style={{ ...panelStyle, borderColor: "#5a2b2b", color: "#f5b4b4", marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <div>{err}</div>
-              <button onClick={() => setErr(null)}>Cerrar</button>
-            </div>
-          </div>
+        {err && <MessageBox title="Error" message={err} onClose={() => setErr(null)} />}
+        {checkinError && (
+          <MessageBox title="Error" message={checkinError} onClose={() => setCheckinError(null)} />
         )}
 
         {deleteConfirm && (
@@ -1246,19 +1242,6 @@ export default function OkrDetail() {
             </div>
           ) : (
             <>
-          {checkinError && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: 8,
-                border: "1px solid #5a2b2b",
-                color: "#f5b4b4",
-                borderRadius: 8,
-              }}
-            >
-              {checkinError}
-            </div>
-          )}
           {selectableKrs.length === 0 && (
             <div style={{ color: "#a6adbb", marginTop: 8 }}>
               Todos los KRs ya alcanzaron el 100%. No se pueden registrar mas avances.
