@@ -255,6 +255,7 @@ router.post("/:okrId/members/by-email", async (req, res) => {
       result: result.status,
       latencyMs,
       email: maskEmail(String(email)),
+      error: result.status !== 201 ? (result.body as any)?.error : undefined,
     });
     if (result.status === 201) {
       console.log("[okrs] add_member_by_email resolved", {

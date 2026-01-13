@@ -49,6 +49,9 @@ export async function addMemberByEmail(
     return { status: 201, body: { ...resolved, role: input.role } };
   } catch (err: any) {
     const message = String(err?.message || "");
+    if (message === "graph_credentials_missing") {
+      return { status: 502, body: { error: "graph_credentials_missing" } };
+    }
     if (message === "graph_user_not_found") {
       return { status: 404, body: { error: "user_not_found" } };
     }
