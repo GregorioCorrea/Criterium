@@ -6,6 +6,7 @@ import okrRouter from './routes/okrs';
 import krRouter from './routes/krs';
 import aiRouter from './routes/ai';
 import { requireAuth } from "./middleware/auth";
+import { getAuthzMode } from "./services/authz";
 
 
 
@@ -28,7 +29,8 @@ app.get('/health', (_req, res) => {
 app.get("/whoami", requireAuth, (req, res) => {
   res.json({
     tenantId: req.tenantId,
-    userId: req.userId
+    userId: req.userId,
+    authzMode: getAuthzMode(),
   });
 });
 

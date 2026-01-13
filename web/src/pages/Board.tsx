@@ -12,6 +12,7 @@ type OkrBoard = {
   status: string;
   alignedTo?: Array<{ id: string }>;
   alignedFrom?: Array<{ id: string }>;
+  myRole?: "owner" | "editor" | "viewer" | null;
   summary: {
     krCount: number;
     avgProgressPct: number | null;
@@ -57,12 +58,22 @@ export default function Board() {
   const [showNew, setShowNew] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
   const [groupByQuarter, setGroupByQuarter] = useState(false);
+  const [authzMode, setAuthzMode] = useState<"tenant_open" | "members_only" | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    apiGet<OkrBoard[]>("/okrs")
-      .then(setData)
-      .catch((e) => setErr(e.message));
+    Promise.allSettled([apiGet<OkrBoard[]>("/okrs"), apiGet<{ authzMode?: string }>("/whoami")])
+      .then(([okrsRes, whoamiRes]) => {
+        if (okrsRes.status === "fulfilled") {
+          setData(okrsRes.value);
+        } else {
+          setErr(okrsRes.reason?.message || "Error");
+        }
+        if (whoamiRes.status === "fulfilled") {
+          const mode = whoamiRes.value?.authzMode;
+          setAuthzMode(mode === "members_only" ? "members_only" : "tenant_open");
+        }
+      });
   }, []);
 
   if (err) return <pre>{err}</pre>;
@@ -159,6 +170,11 @@ export default function Board() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <h2>Criterium OKRs</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {authzMode && (
+              <span className="align-badge">
+                Permisos: {authzMode === "members_only" ? "Solo miembros" : "Abierto por tenant"}
+              </span>
+            )}
             <AiStatus />
             <button onClick={() => setShowNew(true)}>Nuevo OKR</button>
           </div>
@@ -168,6 +184,20 @@ export default function Board() {
             {groupByQuarter ? "Quitar agrupacion" : "Agrupar por trimestre"}
           </button>
         </div>
+        {authzMode === "members_only" && data.length === 0 ? (
+          <div
+            style={{
+              marginTop: 24,
+              padding: 16,
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              background: "var(--panel)",
+              color: "var(--muted)",
+            }}
+          >
+            Todavia no tenes OKRs asignados. Pedi que te agreguen.
+          </div>
+        ) : (
         <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
@@ -248,6 +278,7 @@ export default function Board() {
             ))}
         </tbody>
       </table>
+        )}
       {showNew && (
         <NewOkrModal
           onClose={() => setShowNew(false)}

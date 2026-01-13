@@ -28,12 +28,22 @@ const router = Router();
 
 router.use(requireAuth, requireTenant);
 
+function respondForbidden(res: any) {
+  return res.status(403).json({ error: "forbidden", code: "forbidden", message: "No tenes permisos." });
+}
+
+function respondNotMember(res: any) {
+  return res
+    .status(404)
+    .json({ error: "not_member", code: "not_member", message: "No tenes acceso a este OKR." });
+}
+
 // GET /krs/:okrId -> lista KRs del OKR
 router.get("/:okrId", async (req, res, next) => {
   try {
     const role = await resolveRoleForOkr(req.tenantId!, req.params.okrId, req.userId!);
     if (!canView(role, getAuthzMode())) {
-      return res.status(403).json({ error: "forbidden" });
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
     }
     const rows = await listKrsByOkr(req.tenantId!, req.params.okrId);
     res.json(rows);
@@ -48,26 +58,37 @@ router.post("/", async (req, res, next) => {
     const { okrId, title, metricName, targetValue, unit, allowHigh } = req.body ?? {};
 
     if (!okrId || !title) {
-      return res.status(400).json({ error: "okrId y title son obligatorios" });
+      return res
+        .status(400)
+        .json({ error: "missing_fields", code: "missing_fields", message: "Faltan campos obligatorios." });
     }
     if (targetValue === null || targetValue === undefined || Number.isNaN(Number(targetValue))) {
-      return res.status(400).json({ error: "targetValue es obligatorio" });
+      return res
+        .status(400)
+        .json({ error: "kr_target_missing", code: "kr_target_missing", message: "El targetValue es obligatorio." });
     }
 
     const okrOk = await okrExists(req.tenantId!, String(okrId));
     if (!okrOk) {
-      return res.status(404).json({ error: "okr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "okr_not_found", code: "not_found", message: "OKR no encontrado." });
     }
     const role = await ensureRoleForWrite(req.tenantId!, String(okrId), req.userId!);
+    if (!role) {
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
+    }
     if (!canEdit(role)) {
-      return res.status(403).json({ error: "forbidden" });
+      return respondForbidden(res);
     }
 
     const aiRequired = (process.env.INSIGHTS_AI_ENABLED || "").toLowerCase() === "true";
     let validation = await aiValidateKr({ title, metricName, unit, targetValue: Number(targetValue) });
     if (!validation) {
       if (aiRequired) {
-        return res.status(502).json({ error: "ai_unavailable" });
+        return res
+          .status(502)
+          .json({ error: "ai_unavailable", code: "ai_unavailable", message: "IA no disponible." });
       }
       validation = ruleValidateKr({ title, targetValue: Number(targetValue) });
     }
@@ -77,7 +98,12 @@ router.post("/", async (req, res, next) => {
       allowHigh: !!allowHigh,
     });
     if (hasHigh && !allowHigh) {
-      return res.status(400).json({ error: "ai_validation_failed", issues: validation.issues });
+      return res.status(400).json({
+        error: "ai_validation_failed",
+        code: "ai_validation_failed",
+        message: "Hay issues que bloquean la creacion.",
+        issues: validation.issues,
+      });
     }
 
     const created = await createKr({
@@ -100,16 +126,18 @@ router.post("/", async (req, res, next) => {
 router.get("/:krId/checkins", async (req, res, next) => {
   const krId = req.params.krId;
   if (!krId || krId.trim().length < 10) {
-    return res.status(400).json({ error: "krId invalido" });
+    return res.status(400).json({ error: "kr_invalid", code: "kr_invalid", message: "KR invalido." });
   }
   try {
     const kr = await getKrById(req.tenantId!, req.params.krId);
     if (!kr) {
-      return res.status(404).json({ error: "kr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_not_found", code: "not_found", message: "KR no encontrado." });
     }
     const role = await resolveRoleForOkr(req.tenantId!, kr.okrId, req.userId!);
     if (!canView(role, getAuthzMode())) {
-      return res.status(403).json({ error: "forbidden" });
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
     }
     const rows = await listCheckinsByKr(req.tenantId!, req.params.krId);
     res.json(rows);
@@ -122,27 +150,38 @@ router.get("/:krId/checkins", async (req, res, next) => {
 router.post("/:krId/checkins", async (req, res, next) => {
   const krId = req.params.krId;
   if (!krId || krId.trim().length < 10) {
-    return res.status(400).json({ error: "krId invalido" });
+    return res.status(400).json({ error: "kr_invalid", code: "kr_invalid", message: "KR invalido." });
   }
   try {
     const { value, comment } = req.body ?? {};
 
     if (value === undefined || value === null || Number.isNaN(Number(value))) {
-      return res.status(400).json({ error: "value (numerico) es obligatorio" });
+      return res
+        .status(400)
+        .json({ error: "value_required", code: "value_required", message: "El valor es obligatorio." });
     }
 
     const kr = await getKrById(req.tenantId!, req.params.krId);
     if (!kr) {
-      return res.status(404).json({ error: "kr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_not_found", code: "not_found", message: "KR no encontrado." });
     }
     const role = await ensureRoleForWrite(req.tenantId!, kr.okrId, req.userId!);
+    if (!role) {
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
+    }
     if (!canEdit(role)) {
-      return res.status(403).json({ error: "forbidden" });
+      return respondForbidden(res);
     }
     if (kr.targetValue !== null && kr.targetValue !== undefined) {
       const progress = computeProgressPct(kr.currentValue, kr.targetValue);
       if (progress !== null && progress >= 100) {
-        return res.status(409).json({ error: "kr_already_completed" });
+        return res.status(409).json({
+          error: "kr_already_completed",
+          code: "kr_already_completed",
+          message: "El KR ya alcanzo el 100% y no acepta mas check-ins.",
+        });
       }
     }
 
@@ -170,15 +209,19 @@ router.get("/:krId/insights", async (req, res, next) => {
   try {
     const kr = await getKrById(req.tenantId!, req.params.krId);
     if (!kr) {
-      return res.status(404).json({ error: "kr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_not_found", code: "not_found", message: "KR no encontrado." });
     }
     const role = await resolveRoleForOkr(req.tenantId!, kr.okrId, req.userId!);
     if (!canView(role, getAuthzMode())) {
-      return res.status(403).json({ error: "forbidden" });
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
     }
     const insight = await getKrInsightsByKrId(req.tenantId!, req.params.krId);
     if (!insight) {
-      return res.status(404).json({ error: "kr_insights_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_insights_not_found", code: "not_found", message: "Insights no encontrados." });
     }
     res.json(insight);
   } catch (err) {
@@ -191,15 +234,19 @@ router.get("/:krId/delete-info", async (req, res, next) => {
   try {
     const kr = await getKrById(req.tenantId!, req.params.krId);
     if (!kr) {
-      return res.status(404).json({ error: "kr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_not_found", code: "not_found", message: "KR no encontrado." });
     }
     const role = await resolveRoleForOkr(req.tenantId!, kr.okrId, req.userId!);
     if (!canView(role, getAuthzMode())) {
-      return res.status(403).json({ error: "forbidden" });
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
     }
     const info = await getKrDeleteInfo(req.tenantId!, req.params.krId);
     if (!info) {
-      return res.status(404).json({ error: "kr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_not_found", code: "not_found", message: "KR no encontrado." });
     }
     res.set("Cache-Control", "no-store");
     res.json(info);
@@ -213,11 +260,16 @@ router.delete("/:krId", async (req, res, next) => {
   try {
     const kr = await getKrById(req.tenantId!, req.params.krId);
     if (!kr) {
-      return res.status(404).json({ error: "kr_not_found" });
+      return res
+        .status(404)
+        .json({ error: "kr_not_found", code: "not_found", message: "KR no encontrado." });
     }
     const role = await ensureRoleForWrite(req.tenantId!, kr.okrId, req.userId!);
+    if (!role) {
+      return getAuthzMode() === "members_only" ? respondNotMember(res) : respondForbidden(res);
+    }
     if (!canDelete(role)) {
-      return res.status(403).json({ error: "forbidden" });
+      return respondForbidden(res);
     }
     const info = await getKrDeleteInfo(req.tenantId!, req.params.krId);
     console.log("[krs] delete", {

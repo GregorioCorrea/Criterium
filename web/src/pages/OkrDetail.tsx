@@ -36,6 +36,7 @@ type OkrDetail = {
   fromDate: string;
   toDate: string;
   status: string;
+  myRole?: "owner" | "editor" | "viewer" | null;
   alignedTo?: AlignedOkr[];
   alignedFrom?: AlignedOkr[];
   summary: {
@@ -115,6 +116,7 @@ export default function OkrDetail() {
   const [allOkrs, setAllOkrs] = useState<OkrListItem[]>([]);
   const [members, setMembers] = useState<OkrMember[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState<{ message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [krSort, setKrSort] = useState<{ key: KrSortKey; dir: "asc" | "desc" } | null>(null);
   const [krForm, setKrForm] = useState({
@@ -172,7 +174,7 @@ export default function OkrDetail() {
     const raw = message.replace(/^API \d+:\s*/i, "");
     try {
       const parsed = JSON.parse(raw);
-      const code = parsed?.error;
+      const code = parsed?.code || parsed?.error;
       switch (code) {
         case "missing_fields":
           return "Completa todos los campos obligatorios.";
@@ -198,10 +200,16 @@ export default function OkrDetail() {
           return "Ese usuario ya es miembro del OKR.";
         case "owner_required":
           return "Debe quedar al menos un owner.";
+        case "not_member":
+          return "No tenes acceso a este OKR.";
+        case "kr_already_completed":
+          return "El KR ya alcanzo el 100% y no acepta mas check-ins.";
         case "forbidden":
           return "No tenes permisos para esta accion.";
         case "graph_unavailable":
           return "No se pudo resolver el usuario en Graph.";
+        case "graph_credentials_missing":
+          return "Faltan credenciales de Graph en el backend.";
         default:
           return parsed?.message || raw;
       }
@@ -210,33 +218,77 @@ export default function OkrDetail() {
     }
   };
 
+  const parseApiError = (message: string): { status: number; code?: string; message?: string } | null => {
+    const match = message.match(/^API\s+(\d+):\s*(.*)$/i);
+    if (!match) return null;
+    const status = Number(match[1]);
+    const raw = match[2];
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        status,
+        code: parsed?.code || parsed?.error,
+        message: parsed?.message,
+      };
+    } catch {
+      return { status };
+    }
+  };
+
   const load = () => {
     if (!okrId) return;
-    Promise.allSettled([
-      apiGet<OkrDetail>(`/okrs/${okrId}`),
-      apiGet<OkrListItem[]>(`/okrs`),
-      apiGet<OkrMember[]>(`/okrs/${okrId}/members`),
-    ]).then((results) => {
-      const [detailRes, listRes, membersRes] = results;
-      if (detailRes.status === "fulfilled") {
-        setData(detailRes.value);
-      } else {
-        setErr(formatApiError(detailRes.reason?.message || "Error"));
+    Promise.allSettled([apiGet<OkrDetail>(`/okrs/${okrId}`), apiGet<OkrListItem[]>(`/okrs`)]).then(
+      ([detailRes, listRes]) => {
+        if (detailRes.status === "fulfilled") {
+          setData(detailRes.value);
+          setAccessDenied(null);
+          if (detailRes.value.myRole === "owner" || detailRes.value.myRole === "editor") {
+            apiGet<OkrMember[]>(`/okrs/${okrId}/members`)
+              .then(setMembers)
+              .catch(() => setMembers(null));
+          } else {
+            setMembers(null);
+          }
+        } else {
+          const parsed = parseApiError(detailRes.reason?.message || "");
+          if (parsed && (parsed.status === 403 || parsed.status === 404)) {
+            setAccessDenied({
+              message:
+                parsed.code === "not_member" || parsed.code === "forbidden"
+                  ? "No tenes acceso a este OKR. Pedi al Owner que te agregue como miembro."
+                  : "No se pudo acceder a este OKR.",
+            });
+            setData(null);
+          } else {
+            setErr(formatApiError(detailRes.reason?.message || "Error"));
+          }
+        }
+        if (listRes.status === "fulfilled") {
+          setAllOkrs(listRes.value);
+        }
       }
-      if (listRes.status === "fulfilled") {
-        setAllOkrs(listRes.value);
-      }
-      if (membersRes.status === "fulfilled") {
-        setMembers(membersRes.value);
-      } else {
-        setMembers(null);
-      }
-    });
+    );
   };
 
   useEffect(() => {
     load();
   }, [okrId]);
+
+  if (accessDenied) {
+    return (
+      <div className="page">
+        <div className="page-content">
+          <div style={{ marginBottom: 12 }}>
+            <Link to="/">{"<"} Volver al board</Link>
+          </div>
+          <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 12 }}>
+            <h3>Sin acceso</h3>
+            <div style={{ color: "var(--muted)" }}>{accessDenied.message}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) return <div style={{ padding: 16 }}>Cargando.</div>;
 
@@ -263,7 +315,10 @@ export default function OkrDetail() {
     (okr) => okr.id.toLowerCase() !== data.id.toLowerCase() && !alignedToIds.has(okr.id.toLowerCase())
   );
   const currentMember = members?.find((member) => member.isSelf);
-  const canManageMembersUi = currentMember?.role === "owner";
+  const myRole = data.myRole ?? "viewer";
+  const canManageMembersUi = myRole === "owner";
+  const canEditUi = myRole === "owner" || myRole === "editor";
+  const canDeleteUi = myRole === "owner";
   const sortedKrs = [...data.krs].sort((a, b) => {
     if (!krSort) return 0;
     const dir = krSort.dir === "asc" ? 1 : -1;
@@ -509,12 +564,12 @@ export default function OkrDetail() {
           <h2>{data.objective}</h2>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <AiStatus />
-            {currentMember?.role && (
-              <span className={`role-badge role-badge--${currentMember.role}`}>
-                {currentMember.role}
+            {myRole && (
+              <span className={`role-badge role-badge--${myRole}`}>
+                {myRole}
               </span>
             )}
-            <button onClick={handleDeleteOkr}>Eliminar OKR</button>
+            {canDeleteUi && <button onClick={handleDeleteOkr}>Eliminar OKR</button>}
           </div>
         </div>
 
@@ -561,18 +616,20 @@ export default function OkrDetail() {
                       {okr.fromDate} - {okr.toDate} · {okr.status}
                     </div>
                   </div>
-                  <button
-                    onClick={async () => {
-                      setAlignConfirm({
-                        parentOkrId: okr.id,
-                        childOkrId: data.id,
-                        message:
-                          "Vas a quitar la alineacion entre estos OKRs. Esta accion no se puede deshacer. Continuar?",
-                      });
-                    }}
-                  >
-                    Quitar
-                  </button>
+                  {canEditUi && (
+                    <button
+                      onClick={async () => {
+                        setAlignConfirm({
+                          parentOkrId: okr.id,
+                          childOkrId: data.id,
+                          message:
+                            "Vas a quitar la alineacion entre estos OKRs. Esta accion no se puede deshacer. Continuar?",
+                        });
+                      }}
+                    >
+                      Quitar
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -598,71 +655,77 @@ export default function OkrDetail() {
                       {okr.fromDate} - {okr.toDate} · {okr.status}
                     </div>
                   </div>
-                  <button
-                    onClick={async () => {
-                      setAlignConfirm({
-                        parentOkrId: data.id,
-                        childOkrId: okr.id,
-                        message:
-                          "Vas a quitar la alineacion entre estos OKRs. Esta accion no se puede deshacer. Continuar?",
-                      });
-                    }}
-                  >
-                    Quitar
-                  </button>
+                  {canEditUi && (
+                    <button
+                      onClick={async () => {
+                        setAlignConfirm({
+                          parentOkrId: data.id,
+                          childOkrId: okr.id,
+                          message:
+                            "Vas a quitar la alineacion entre estos OKRs. Esta accion no se puede deshacer. Continuar?",
+                        });
+                      }}
+                    >
+                      Quitar
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontWeight: 600 }}>Agregar alineacion</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <select
-                  value={alignTargetId}
-                  onChange={(e) => setAlignTargetId(e.target.value)}
-                >
-                  <option value="">Selecciona un OKR</option>
-                  {selectableAlignTargets.map((okr) => (
-                    <option key={okr.id} value={okr.id}>
-                      {okr.objective}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={alignDirection}
-                  onChange={(e) => setAlignDirection(e.target.value as "up" | "down")}
-                >
-                  <option value="up">Contribuye a (up)</option>
-                  <option value="down">Recibe contribucion (down)</option>
-                </select>
-                <button
-                  disabled={alignBusy || !alignTargetId}
-                  onClick={async () => {
-                    if (!alignTargetId) return;
-                    setAlignBusy(true);
-                    try {
-                      const childOkrId = alignDirection === "up" ? data.id : alignTargetId;
-                      const parentOkrId = alignDirection === "up" ? alignTargetId : data.id;
-                      await apiPost(`/okrs/${childOkrId}/alignments`, { targetOkrId: parentOkrId });
-                      setAlignTargetId("");
-                      load();
-                    } catch (e: any) {
-                      setErr(formatApiError(e.message));
-                    } finally {
-                      setAlignBusy(false);
-                    }
-                  }}
-                >
-                  {alignBusy ? "Agregando..." : "Agregar alineacion"}
-                </button>
-              </div>
-              {alignTargetId && (
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>
-                  {alignDirection === "up"
-                    ? `"${data.objective}" contribuye a "${selectableAlignTargets.find((o) => o.id === alignTargetId)?.objective ?? ""}".`
-                    : `"${selectableAlignTargets.find((o) => o.id === alignTargetId)?.objective ?? ""}" contribuye a "${data.objective}".`}
+            {canEditUi ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ fontWeight: 600 }}>Agregar alineacion</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <select
+                    value={alignTargetId}
+                    onChange={(e) => setAlignTargetId(e.target.value)}
+                  >
+                    <option value="">Selecciona un OKR</option>
+                    {selectableAlignTargets.map((okr) => (
+                      <option key={okr.id} value={okr.id}>
+                        {okr.objective}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={alignDirection}
+                    onChange={(e) => setAlignDirection(e.target.value as "up" | "down")}
+                  >
+                    <option value="up">Contribuye a (up)</option>
+                    <option value="down">Recibe contribucion (down)</option>
+                  </select>
+                  <button
+                    disabled={alignBusy || !alignTargetId}
+                    onClick={async () => {
+                      if (!alignTargetId) return;
+                      setAlignBusy(true);
+                      try {
+                        const childOkrId = alignDirection === "up" ? data.id : alignTargetId;
+                        const parentOkrId = alignDirection === "up" ? alignTargetId : data.id;
+                        await apiPost(`/okrs/${childOkrId}/alignments`, { targetOkrId: parentOkrId });
+                        setAlignTargetId("");
+                        load();
+                      } catch (e: any) {
+                        setErr(formatApiError(e.message));
+                      } finally {
+                        setAlignBusy(false);
+                      }
+                    }}
+                  >
+                    {alignBusy ? "Agregando..." : "Agregar alineacion"}
+                  </button>
                 </div>
-              )}
-            </div>
+                {alignTargetId && (
+                  <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                    {alignDirection === "up"
+                      ? `"${data.objective}" contribuye a "${selectableAlignTargets.find((o) => o.id === alignTargetId)?.objective ?? ""}".`
+                      : `"${selectableAlignTargets.find((o) => o.id === alignTargetId)?.objective ?? ""}" contribuye a "${data.objective}".`}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ color: "var(--muted)" }}>Alineacion en modo solo lectura.</div>
+            )}
           </div>
         </details>
 
@@ -681,10 +744,12 @@ export default function OkrDetail() {
                   <div style={{ color: "var(--muted)" }}>Sin miembros.</div>
                 )}
                 {members.map((member) => {
-                  const label =
-                    member.displayName ||
-                    member.email ||
-                    `${member.userObjectId.slice(0, 8)}...`;
+                  const oidShort = `${member.userObjectId.slice(0, 4)}...${member.userObjectId.slice(-4)}`;
+                  const label = member.displayName || "(sin perfil)";
+                  const subtitleParts = [];
+                  if (member.email) subtitleParts.push(member.email);
+                  if (!member.displayName) subtitleParts.push(oidShort);
+                  const subtitle = subtitleParts.join(" · ");
                   return (
                     <div
                       key={member.userObjectId}
@@ -699,17 +764,17 @@ export default function OkrDetail() {
                     >
                       <div>
                         <div>{label}</div>
-                        {member.email && (
-                          <div style={{ color: "var(--muted)", fontSize: 12 }}>{member.email}</div>
+                        {subtitle && (
+                          <div style={{ color: "var(--muted)", fontSize: 12 }}>{subtitle}</div>
                         )}
                       </div>
                       <div>
-                        {canManageMembersUi ? (
-                          <select
-                            value={member.role}
-                            onChange={async (e) => {
-                              if (!okrId) return;
-                              try {
+                {canManageMembersUi ? (
+                  <select
+                    value={member.role}
+                    onChange={async (e) => {
+                      if (!okrId) return;
+                      try {
                                 await apiPatch(`/okrs/${okrId}/members/${member.userObjectId}`, {
                                   role: e.target.value,
                                 });
@@ -724,15 +789,15 @@ export default function OkrDetail() {
                             <option value="viewer">viewer</option>
                           </select>
                         ) : (
-                          <span>{member.role}</span>
-                        )}
-                      </div>
-                      <div>
-                        {canManageMembersUi && (
-                          <button
-                            onClick={() =>
-                              setMemberConfirm({
-                                userObjectId: member.userObjectId,
+                    <span>{member.role}</span>
+                  )}
+                </div>
+                <div>
+                  {canManageMembersUi && (
+                    <button
+                      onClick={() =>
+                        setMemberConfirm({
+                          userObjectId: member.userObjectId,
                                 role: member.role,
                                 display: label,
                               })
@@ -815,7 +880,7 @@ export default function OkrDetail() {
                 <th>{renderKrSortHeader("Progreso", "progress")}</th>
                 <th>{renderKrSortHeader("Estado", "health")}</th>
                 <th>{renderKrSortHeader("Estado y recomendacion", "insight")}</th>
-                <th style={{ width: 120, whiteSpace: "nowrap" }}>Acciones</th>
+                {canDeleteUi && <th style={{ width: 120, whiteSpace: "nowrap" }}>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -839,9 +904,11 @@ export default function OkrDetail() {
                       <b>Siguiente:</b> {kr.insights?.suggestion ?? "-"}
                     </div>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <button onClick={() => handleDeleteKr(kr.id)}>Eliminar</button>
-                  </td>
+                  {canDeleteUi && (
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <button onClick={() => handleDeleteKr(kr.id)}>Eliminar</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -850,7 +917,12 @@ export default function OkrDetail() {
 
         <details id="section-ai-kr" open style={{ marginTop: 20, ...panelStyle }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>KRs (IA + manual)</summary>
-          <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+          {!canEditUi ? (
+            <div style={{ marginTop: 8, color: "var(--muted)" }}>
+              Solo lectura. No tenes permisos para crear o editar KRs.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
             <div>
               <b>Objetivo:</b> {data.objective}
             </div>
@@ -1119,11 +1191,11 @@ export default function OkrDetail() {
                   onChange={(e) => setKrForm({ ...krForm, targetValue: e.target.value })}
                 />
               </div>
-              <div style={{ marginTop: 8 }}>
-                <button
-                  disabled={busy}
-                  onClick={async () => {
-                    if (!okrId) return;
+            <div style={{ marginTop: 8 }}>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  if (!okrId) return;
                     setBusy(true);
                     setKrIssues([]);
                     try {
@@ -1163,10 +1235,17 @@ export default function OkrDetail() {
               </div>
             </div>
           </div>
+          )}
         </details>
 
         <details id="section-checkin" style={{ marginTop: 12, ...panelStyle }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>Registrar check-in</summary>
+          {!canEditUi ? (
+            <div style={{ marginTop: 8, color: "var(--muted)" }}>
+              Solo lectura. No tenes permisos para registrar check-ins.
+            </div>
+          ) : (
+            <>
           {checkinError && (
             <div
               style={{
@@ -1263,12 +1342,14 @@ export default function OkrDetail() {
               {busy ? "Registrando..." : "Guardar check-in"}
             </button>
           </div>
+            </>
+          )}
         </details>
         <div className="sticky-actions" style={{ marginTop: 16 }}>
           <button onClick={() => openSection("section-alignment")}>Alineacion</button>
           <button onClick={() => openSection("section-members")}>Miembros</button>
-          <button onClick={() => openSection("section-ai-kr")}>KRs (IA + manual)</button>
-          <button onClick={() => openSection("section-checkin")}>Registrar check-in</button>
+          {canEditUi && <button onClick={() => openSection("section-ai-kr")}>KRs (IA + manual)</button>}
+          {canEditUi && <button onClick={() => openSection("section-checkin")}>Registrar check-in</button>}
         </div>
       </div>
     </div>

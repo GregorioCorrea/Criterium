@@ -8,6 +8,7 @@ export type OkrBoardRow = {
   fromDate: string;
   toDate: string;
   status: string;
+  myRole?: "owner" | "editor" | "viewer" | null;
   summary: OkrSummary;
   alignedTo?: Array<{ id: string; objective: string; fromDate: string; toDate: string; status: string }>;
   alignedFrom?: Array<{ id: string; objective: string; fromDate: string; toDate: string; status: string }>;
@@ -19,7 +20,10 @@ export type OkrBoardRow = {
   } | null;
 };
 
-export async function listOkrsWithSummary(tenantId: string): Promise<OkrBoardRow[]> {
+export async function listOkrsWithSummary(
+  tenantId: string,
+  userObjectId: string
+): Promise<OkrBoardRow[]> {
   const okrs = await query<any>(
     `
     SELECT
@@ -28,17 +32,22 @@ export async function listOkrsWithSummary(tenantId: string): Promise<OkrBoardRow
       CONVERT(varchar(10), o.from_date, 120) as fromDate,
       CONVERT(varchar(10), o.to_date, 120) as toDate,
       o.status,
+      om.role as myRole,
       oi.explanation_short as insightShort,
       oi.suggestion as insightSuggestion,
       CONVERT(varchar(19), oi.computed_at, 120) as insightComputedAt,
       oi.source as insightSource
     FROM dbo.okrs o
+    LEFT JOIN dbo.OkrMembers om
+      ON om.okr_id = o.id
+      AND om.tenant_id = CAST(@tenantId as uniqueidentifier)
+      AND om.user_object_id = CAST(@userObjectId as uniqueidentifier)
     LEFT JOIN dbo.OkrInsights oi
       ON oi.okr_id = o.id AND oi.tenant_id = @tenantId
     WHERE o.tenant_id = CAST(@tenantId as uniqueidentifier)
     ORDER BY o.from_date DESC
     `,
-    { tenantId }
+    { tenantId, userObjectId }
   );
 
   const alignmentPairs = await listAlignmentPairs(tenantId);
@@ -75,6 +84,7 @@ export async function listOkrsWithSummary(tenantId: string): Promise<OkrBoardRow
     result.push({
       ...o,
       summary,
+      myRole: o.myRole ? String(o.myRole) : null,
       alignedTo,
       alignedFrom,
       insights: o.insightShort
@@ -102,6 +112,7 @@ export async function listOkrsWithSummaryForUser(
       CONVERT(varchar(10), o.from_date, 120) as fromDate,
       CONVERT(varchar(10), o.to_date, 120) as toDate,
       o.status,
+      om.role as myRole,
       oi.explanation_short as insightShort,
       oi.suggestion as insightSuggestion,
       CONVERT(varchar(19), oi.computed_at, 120) as insightComputedAt,
@@ -152,6 +163,7 @@ export async function listOkrsWithSummaryForUser(
     result.push({
       ...o,
       summary,
+      myRole: o.myRole ? String(o.myRole) : null,
       alignedTo,
       alignedFrom,
       insights: o.insightShort
