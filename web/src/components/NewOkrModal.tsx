@@ -3,6 +3,7 @@ import { apiPost } from "../api";
 import AiStatus from "./AiStatus";
 import Modal from "./Modal";
 import MessageBox from "./MessageBox";
+import { useToast } from "./Toast";
 
 type DraftResponse = {
   objectiveRefined: string | null;
@@ -69,6 +70,7 @@ function formatApiError(message: string): string {
 }
 
 export default function NewOkrModal({ onClose, onCreated }: Props) {
+  const { showToast } = useToast();
   const [objective, setObjective] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -277,6 +279,7 @@ export default function NewOkrModal({ onClose, onCreated }: Props) {
         allowHigh: !!allowHigh,
       });
       console.log("[okr] create response", { okrId: res.okr.id });
+      showToast("OKR creado.");
       onCreated(res.okr.id);
     } catch (e: any) {
       setErr(formatApiError(e.message));

@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../api";
 import AiStatus from "../components/AiStatus";
 import MessageBox from "../components/MessageBox";
+import { useToast } from "../components/Toast";
 
 type AlignedOkr = {
   id: string;
@@ -113,6 +114,7 @@ function formatHealth(value: string | null | undefined): string {
 
 export default function OkrDetail() {
   const { okrId } = useParams();
+  const { showToast } = useToast();
   const [data, setData] = useState<OkrDetail | null>(null);
   const [allOkrs, setAllOkrs] = useState<OkrListItem[]>([]);
   const [members, setMembers] = useState<OkrMember[] | null>(null);
@@ -477,6 +479,7 @@ export default function OkrDetail() {
                       console.log("[okr] delete request", { okrId: deleteConfirm.okrId });
                       await apiDelete<{ ok: boolean }>(`/okrs/${deleteConfirm.okrId}`);
                       console.log("[okr] delete response", { okrId: deleteConfirm.okrId });
+                      showToast("OKR eliminado.");
                       window.location.href = "/";
                       return;
                     }
@@ -484,6 +487,7 @@ export default function OkrDetail() {
                       console.log("[kr] delete request", { krId: deleteConfirm.krId });
                       await apiDelete<{ ok: boolean }>(`/krs/${deleteConfirm.krId}`);
                       console.log("[kr] delete response", { krId: deleteConfirm.krId });
+                      showToast("KR eliminado.");
                       setDeleteConfirm(null);
                       load();
                       return;
@@ -513,6 +517,7 @@ export default function OkrDetail() {
                       `/okrs/${alignConfirm.childOkrId}/alignments/${alignConfirm.parentOkrId}`
                     );
                     setAlignConfirm(null);
+                    showToast("Alineacion quitada.");
                     load();
                   } catch (e: any) {
                     setAlignConfirm(null);
@@ -540,6 +545,7 @@ export default function OkrDetail() {
                   try {
                     await apiDelete(`/okrs/${okrId}/members/${memberConfirm.userObjectId}`);
                     setMemberConfirm(null);
+                    showToast("Miembro eliminado.");
                     load();
                   } catch (e: any) {
                     setMemberConfirm(null);
@@ -700,6 +706,7 @@ export default function OkrDetail() {
                         const parentOkrId = alignDirection === "up" ? alignTargetId : data.id;
                         await apiPost(`/okrs/${childOkrId}/alignments`, { targetOkrId: parentOkrId });
                         setAlignTargetId("");
+                        showToast("Alineacion agregada.");
                         load();
                       } catch (e: any) {
                         setErr(formatApiError(e.message));
@@ -774,6 +781,7 @@ export default function OkrDetail() {
                                 await apiPatch(`/okrs/${okrId}/members/${member.userObjectId}`, {
                                   role: e.target.value,
                                 });
+                                showToast("Rol actualizado.");
                                 load();
                               } catch (err: any) {
                                 setErr(formatApiError(err.message));
@@ -835,6 +843,7 @@ export default function OkrDetail() {
                             role: memberRole,
                           });
                           setMemberEmail("");
+                          showToast("Miembro agregado.");
                           load();
                         } catch (err: any) {
                           setErr(formatApiError(err.message));
@@ -991,6 +1000,7 @@ export default function OkrDetail() {
                         });
                         setAiAddedTitles((prev) => [...prev, aiAddError.kr.title.toLowerCase()]);
                         setAiAddError(null);
+                        showToast("KR agregado.");
                         load();
                       } catch (e: any) {
                         setErr(formatApiError(e.message));
@@ -1092,6 +1102,7 @@ export default function OkrDetail() {
                               return { ...prev, suggestedKrs: next };
                             });
                             setAiAddedTitles((prev) => [...prev, normalized]);
+                            showToast("KR agregado.");
                             load();
                           } catch (e: any) {
                             const raw = String(e?.message || "");
@@ -1218,6 +1229,7 @@ export default function OkrDetail() {
                         targetValue: Number(krForm.targetValue),
                       });
                       setKrForm({ title: "", metricName: "", unit: "", targetValue: "" });
+                      showToast("KR creado.");
                       load();
                     } catch (e: any) {
                       setErr(formatApiError(e.message));
@@ -1311,6 +1323,7 @@ export default function OkrDetail() {
                   });
                   setCheckinForm({ krId: "", value: "", comment: "" });
                   setCheckinError(null);
+                  showToast("Check-in registrado.");
                   load();
                 } catch (e: any) {
                   const msg = formatApiError(e.message);

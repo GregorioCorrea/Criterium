@@ -283,6 +283,27 @@ button:hover {
   color: var(--muted);
 }
 
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1200;
+}
+
+.toast {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 220px;
+  max-width: 360px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
 @media (max-width: 900px) {
   .form-grid-4,
   .form-grid-5,

@@ -111,6 +111,7 @@ export async function listOkrsWithSummaryForUser(
       o.objective,
       CONVERT(varchar(10), o.from_date, 120) as fromDate,
       CONVERT(varchar(10), o.to_date, 120) as toDate,
+      o.from_date as fromDateSort,
       o.status,
       om.role as myRole,
       oi.explanation_short as insightShort,
@@ -124,7 +125,7 @@ export async function listOkrsWithSummaryForUser(
       ON oi.okr_id = o.id AND oi.tenant_id = @tenantId
     WHERE o.tenant_id = CAST(@tenantId as uniqueidentifier)
       AND om.user_object_id = CAST(@userObjectId as uniqueidentifier)
-    ORDER BY o.from_date DESC
+    ORDER BY fromDateSort DESC
     `,
     { tenantId, userObjectId }
   );
